@@ -65,8 +65,8 @@ const printSection = async (title, contentId) => {
     @page { size: A4; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; }
-    .page { width: 210mm; min-height: 297mm; padding: 12mm 14mm 30mm 14mm; display: flex; flex-direction: column; }
-    .pad-content-wrap { flex: 1; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    .page { width: 210mm; min-height: 297mm; padding: 12mm 14mm 0 14mm; }
     /* HEADER - exact Noksha Pad layout */
     .pad-header {
       display: flex;
@@ -117,20 +117,40 @@ const printSection = async (title, contentId) => {
     tr:nth-child(even) td { background: #F5F8F5; }
     /* FOOTER - fixed at bottom */
     .pad-footer {
-      position: fixed;
-      bottom: 0;
-      left: 14mm;
-      right: 14mm;
-      padding: 5px 0 8px;
-      border-top: 1px solid #aaa;
-      font-size: 7.5pt;
-      color: #555;
-      text-align: center;
-      background: white;
+      position: running(footer);
+    }
+    @page {
+      @bottom-center {
+        content: element(footer);
+      }
+      margin-bottom: 25mm;
+    }
+    .pad-footer-fixed {
+      display: none;
     }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .pad-footer { position: fixed; bottom: 0; left: 14mm; right: 14mm; }
+      .pad-footer-fixed {
+        display: block;
+        position: fixed;
+        bottom: 0;
+        left: 14mm;
+        right: 14mm;
+        padding: 5px 0 8px;
+        border-top: 1px solid #aaa;
+        font-size: 7.5pt;
+        color: #555;
+        text-align: center;
+        background: white;
+      }
+    }
+    .screen-footer {
+      margin-top: 30px;
+      border-top: 1px solid #aaa;
+      padding: 5px 0 8px;
+      font-size: 7.5pt;
+      color: #555;
+      text-align: center;
     }
   </style></head><body>
   <div class="page">
@@ -149,13 +169,14 @@ const printSection = async (title, contentId) => {
       <span>তারিখ: ${new Date().toLocaleDateString("bn-BD")}</span>
       <span>Date: ${new Date().toLocaleDateString("en-GB")}</span>
     </div>
-    <div class="pad-content-wrap">
-      <div class="pad-content">
-        ${content.innerHTML}
-      </div>
+    <div class="pad-content">
+      ${content.innerHTML}
+    </div>
+    <div class="screen-footer">
+      (We provide all kind of Building Design, 3D View, Exterior/Interior 3D Visualization, Structural Design, Electrical Design, Plumbing Design, Pouroshova/Rajuk Sheet, Estimating &amp; Costing, Building Construction &amp; Supervision)
     </div>
   </div>
-  <div class="pad-footer">
+  <div class="pad-footer-fixed">
     (We provide all kind of Building Design, 3D View, Exterior/Interior 3D Visualization, Structural Design, Electrical Design, Plumbing Design, Pouroshova/Rajuk Sheet, Estimating &amp; Costing, Building Construction &amp; Supervision)
   </div>
   <script>setTimeout(() => { window.print(); }, 800 );<\/script>
@@ -197,9 +218,9 @@ const parseExcelFile = (file) => new Promise((resolve, reject) => {
 const uploadImage = async (file, folder) => {
   if (!file) return null;
   if (file.size > 20 * 1024 * 1024) { alert("❌ ছবি সর্বোচ্চ 20MB হতে হবে!"); return null; }
-  const ext = file.name.split(".").pop();
-  const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).substr(2, 6)}.${ext}`;
-  const { data, error } = await supabase.storage.from("Upload images").upload(fileName, file, { cacheControl: "3600", upsert: false });
+  const ext = file.name.split(".").pop().toLowerCase();
+  const fileName = folder + "/" + Date.now() + "_" + Math.random().toString(36).substr(2, 6) + "." + ext;
+  const { data, error } = await supabase.storage.from("Upload images").upload(fileName, file, { cacheControl: "3600", upsert: true, contentType: file.type });
   if (error) { alert("Image upload error: " + error.message); return null; }
   const { data: urlData } = supabase.storage.from("Upload images").getPublicUrl(fileName);
   return urlData.publicUrl;
@@ -776,6 +797,23 @@ function Attendance({ employees }) {
   const today = new Date().toISOString().split("T")[0];
   const [selDate, setSelDate] = useState(today);
   const [attData, setAttData] = useState({});
+  const uploadRef = useRef();
+  const handleUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const rows = await parseExcelFile(file);
+    let count = 0;
+    for (const row of rows) {
+      const emp = employees.find(em => em.name === (row["নাম"] || row["name"]));
+      if (!emp) continue;
+      const date = row["তারিখ"] || row["date"] || selDate;
+      const status = row["উপস্থিতি"] || row["status"] || "উপস্থিত";
+      const existing = await supabase.from("attendance").select("id").eq("employee_id", emp.id).eq("date", date).single();
+      if (existing.data) { await supabase.from("attendance").update({ status }).eq("id", existing.data.id); }
+      else { await supabase.from("attendance").insert([{ employee_id: emp.id, date, status }]); }
+      count++;
+    }
+    alert("✅ " + count + "জনের উপস্থিতি আপলোড হয়েছে!"); e.target.value = "";
+  };
 
   useEffect(() => { loadAtt(); }, [selDate]);
 
@@ -800,7 +838,7 @@ function Attendance({ employees }) {
 
   return (
     <div>
-      <SectionHeader title="উপস্থিতি ব্যবস্থাপনা" onPrint={handlePrint} onExport={handleExport} />
+      <SectionHeader title="উপস্থিতি ব্যবস্থাপনা" onPrint={handlePrint} onExport={handleExport} onUpload={handleUpload} uploadRef={uploadRef} />
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
         <div style={{ fontWeight: 600, color: C.gray800, fontSize: 14 }}>তারিখ:</div>
         <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
@@ -1016,6 +1054,18 @@ function SiteProgress({ data, projects, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [form, setForm] = useState({ project: "", date: new Date().toISOString().split("T")[0], work: "", phase: "ফাউন্ডেশন", workers: "", note: "", status: "চলমান" });
+  const uploadRef = useRef();
+  const handleUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const rows = await parseExcelFile(file);
+    let count = 0;
+    for (const row of rows) {
+      if (!row["কাজ"] && !row["work"]) continue;
+      await supabase.from("site_progress").insert([{ project: row["প্রজেক্ট"] || row["project"] || "", date: row["তারিখ"] || row["date"] || new Date().toISOString().split("T")[0], work: row["কাজ"] || row["work"] || "", phase: row["পর্যায়"] || row["phase"] || "ফাউন্ডেশন", workers: +row["শ্রমিক"] || 0, note: row["নোট"] || "", status: row["স্ট্যাটাস"] || "চলমান" }]);
+      count++;
+    }
+    alert("✅ " + count + "টি আপলোড হয়েছে!"); onRefresh(); e.target.value = "";
+  };
 
   const openAdd = () => { setEditItem(null); setForm({ project: "", date: new Date().toISOString().split("T")[0], work: "", phase: "ফাউন্ডেশন", workers: "", note: "", status: "চলমান" }); setShowModal(true); };
   const openEdit = (item) => { setEditItem(item); setForm({ ...item }); setShowModal(true); };
@@ -1037,7 +1087,7 @@ function SiteProgress({ data, projects, onRefresh }) {
 
   return (
     <div>
-      <SectionHeader title="সাইট অগ্রগতি" action="নতুন আপডেট" onAction={openAdd} onExport={handleExport} onPrint={() => { printSection("সাইট অগ্রগতি রিপোর্ট", "site-content"); }} />
+      <SectionHeader title="সাইট অগ্রগতি" action="নতুন আপডেট" onAction={openAdd} onExport={handleExport} onPrint={() => { printSection("সাইট অগ্রগতি রিপোর্ট", "site-content"); }} onUpload={handleUpload} uploadRef={uploadRef} />
       <div id="site-content" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
         {[...data].reverse().map(s => (
           <Card key={s.id}>
@@ -2366,6 +2416,7 @@ function UserManagement() {
 }
 
 export default function App() {
+  const [lang, setLang] = useState(localStorage.getItem("nic_lang") || "bn");
   const [loggedIn, setLoggedIn] = useState(localStorage.getItem("nic_logged_in") === "true");
   const [currentUser, setCurrentUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem("nic_user") || "null"); } catch { return null; }
@@ -2434,6 +2485,7 @@ export default function App() {
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             {isAdmin && <button onClick={loadAll} style={{ background: C.primaryBg, border: `1px solid ${C.primaryLight}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, color: C.primaryDark, fontFamily: "inherit" }}>🔄 রিফ্রেশ</button>}
+            <button onClick={() => { const nl = lang === "bn" ? "en" : "bn"; setLang(nl); localStorage.setItem("nic_lang", nl); }} style={{ background: lang === "en" ? C.primaryDark : C.primaryBg, color: lang === "en" ? C.white : C.primaryDark, border: `1px solid ${C.primary}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>{lang === "bn" ? "EN" : "বাং"}</button>
             <div onClick={() => setShowProfile(p => !p)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "6px 10px", borderRadius: 10, background: showProfile ? C.primaryBg : "transparent", transition: "background 0.2s" }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", border: `2px solid ${C.primary}`, background: C.primaryBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 {localStorage.getItem("nic_profile_pic") ? <img src={localStorage.getItem("nic_profile_pic")} alt="P" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontWeight: 700, color: C.primary, fontSize: 14 }}>{currentUser?.name?.[0] || "R"}</span>}
