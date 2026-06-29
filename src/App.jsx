@@ -65,7 +65,8 @@ const printSection = async (title, contentId) => {
     @page { size: A4; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; }
-    .page { width: 210mm; min-height: 297mm; padding: 12mm 14mm 25mm 14mm; position: relative; }
+    .page { width: 210mm; min-height: 297mm; padding: 12mm 14mm 30mm 14mm; display: flex; flex-direction: column; }
+    .pad-content-wrap { flex: 1; }
     /* HEADER - exact Noksha Pad layout */
     .pad-header {
       display: flex;
@@ -118,9 +119,9 @@ const printSection = async (title, contentId) => {
     .pad-footer {
       position: fixed;
       bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 5px 14mm 6px;
+      left: 14mm;
+      right: 14mm;
+      padding: 5px 0 8px;
       border-top: 1px solid #aaa;
       font-size: 7.5pt;
       color: #555;
@@ -128,8 +129,8 @@ const printSection = async (title, contentId) => {
       background: white;
     }
     @media print {
-      .pad-footer { position: fixed; bottom: 0; }
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .pad-footer { position: fixed; bottom: 0; left: 14mm; right: 14mm; }
     }
   </style></head><body>
   <div class="page">
@@ -148,8 +149,10 @@ const printSection = async (title, contentId) => {
       <span>তারিখ: ${new Date().toLocaleDateString("bn-BD")}</span>
       <span>Date: ${new Date().toLocaleDateString("en-GB")}</span>
     </div>
-    <div class="pad-content">
-      ${content.innerHTML}
+    <div class="pad-content-wrap">
+      <div class="pad-content">
+        ${content.innerHTML}
+      </div>
     </div>
   </div>
   <div class="pad-footer">
