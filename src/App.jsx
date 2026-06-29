@@ -48,47 +48,102 @@ let ADMIN_PASS = localStorage.getItem("nic_password") || "noksha2024";
 // ============================================================
 const NOKSHA_LOGO_B64 = "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";
 
-const printSection = (title, contentId) => {
+const printSection = async (title, contentId) => {
   const content = document.getElementById(contentId);
   if (!content) return;
+  // Fetch logo as base64
+  let logoB64 = "";
+  try {
+    const resp = await fetch("https://jijxnycopycsysugppnw.supabase.co/storage/v1/object/public/Upload%20images/icon.png");
+    const blob = await resp.blob();
+    logoB64 = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(blob); });
+  } catch(e) { logoB64 = ""; }
+
   const win = window.open("", "_blank");
-  win.document.write(`
-    <html><head><title>${title} — Noksha</title>
-    <style>
-      @page { size: A4; margin: 15mm 12mm 20mm 12mm; }
-      * { box-sizing: border-box; }
-      body { font-family: Arial, sans-serif; font-size: 10pt; color: #1A1A1A; margin: 0; padding: 0; }
-      .pad-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #3F5F45; padding-bottom: 8px; margin-bottom: 10px; }
-      .pad-logo { display: flex; align-items: center; gap: 8px; }
-      .pad-logo img { width: 48px; height: 48px; object-fit: contain; }
-      .pad-logo-text .name { font-size: 20pt; font-weight: 900; color: #3F5F45; letter-spacing: 2px; line-height: 1; }
-      .pad-logo-text .sub { font-size: 7pt; color: #6B8F6B; font-weight: 700; letter-spacing: 2px; }
-      .pad-address { text-align: right; font-size: 8.5pt; color: #333; line-height: 1.6; }
-      .pad-address .addr-name { font-weight: 800; color: #3F5F45; font-size: 10pt; }
-      .doc-title-bar { background: #3F5F45; color: white; text-align: center; padding: 5px 10px; font-size: 10pt; font-weight: 700; margin-bottom: 6px; }
-      .doc-date { display: flex; justify-content: space-between; font-size: 9pt; color: #555; margin-bottom: 8px; }
-      table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-      th { background: #3F5F45; color: white; padding: 5px 7px; text-align: left; font-size: 9pt; border: 1px solid #2A3F2E; }
-      td { padding: 5px 7px; border-bottom: 1px solid #E9ECEF; font-size: 9pt; }
-      tr:nth-child(even) { background: #F5F8F5; }
-      .pad-content { min-height: 200px; }
-      .pad-footer { margin-top: 20px; border-top: 1.5px solid #3F5F45; padding-top: 6px; font-size: 8pt; color: #444; text-align: center; font-style: italic; }
-    </style></head><body>
+  win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; }
+    .page { width: 210mm; min-height: 297mm; padding: 12mm 14mm 25mm 14mm; position: relative; }
+    /* HEADER - exact Noksha Pad layout */
+    .pad-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #3F5F45;
+      margin-bottom: 10px;
+    }
+    .pad-left {
+      font-size: 9pt;
+      color: #333;
+      line-height: 1.7;
+    }
+    .pad-right {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .pad-logo-img {
+      height: 55px;
+      width: auto;
+      object-fit: contain;
+    }
+    /* Document title bar */
+    .doc-title {
+      background: #3F5F45;
+      color: white;
+      text-align: center;
+      padding: 4px 10px;
+      font-size: 10pt;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+    .doc-date {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8.5pt;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    /* Content */
+    .pad-content { }
+    table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+    th { background: #3F5F45; color: white; padding: 5px 7px; text-align: left; border: 0.5px solid #2A3F2E; }
+    td { padding: 5px 7px; border-bottom: 0.5px solid #E0E0E0; font-size: 9pt; }
+    tr:nth-child(even) td { background: #F5F8F5; }
+    /* FOOTER - fixed at bottom */
+    .pad-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 5px 14mm 6px;
+      border-top: 1px solid #aaa;
+      font-size: 7.5pt;
+      color: #555;
+      text-align: center;
+      background: white;
+    }
+    @media print {
+      .pad-footer { position: fixed; bottom: 0; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style></head><body>
+  <div class="page">
     <div class="pad-header">
-      <div class="pad-logo">
-        <img src="https://jijxnycopycsysugppnw.supabase.co/storage/v1/object/public/Upload%20images/icon.png" alt="Noksha" />
-        <div class="pad-logo-text">
-          <div class="name">NOKSHA</div>
-          <div class="sub">INTERIOR &amp; CONSTRUCTION</div>
-        </div>
+      <div class="pad-left">
+        Address: Arju Super Market (3rd Floor)<br/>
+        Niltuli Mujib Sarak, Faridpur.<br/>
+        Cell: +88 01619-677070 &nbsp; E-mail: noksha.ltd@gmail.com
       </div>
-      <div class="pad-address">
-        <div class="addr-name">Noksha Interior &amp; Construction</div>
-        Arju Super Market (3rd Floor), Niltuli Mujib Sarak, Faridpur<br/>
-        Cell: +88 01619-677070 &nbsp;&nbsp; E-mail: noksha.ltd@gmail.com
+      <div class="pad-right">
+        ${logoB64 ? \`<img src="\${logoB64}" class="pad-logo-img" alt="NOKSHA" />\` : \`<div style="font-size:18pt;font-weight:900;color:#3F5F45;letter-spacing:2px;">NOKSHA<div style="font-size:7pt;letter-spacing:3px;color:#6B8F6B;">INTERIOR &amp; CONSTRUCTION</div></div>\`}
       </div>
     </div>
-    <div class="doc-title-bar">${title}</div>
+    <div class="doc-title">${title}</div>
     <div class="doc-date">
       <span>তারিখ: ${new Date().toLocaleDateString("bn-BD")}</span>
       <span>Date: ${new Date().toLocaleDateString("en-GB")}</span>
@@ -96,14 +151,15 @@ const printSection = (title, contentId) => {
     <div class="pad-content">
       ${content.innerHTML}
     </div>
-    <div class="pad-footer">
-      We provide all kind of Building Design, 3D View, Exterior/Interior 3D Visualization, Structural Design, Electrical Design, Plumbing Design, Pouroshova/Rajuk Sheet, Estimating &amp; Costing, Building Construction &amp; Supervision
-    </div>
-    <script>setTimeout(() => window.print(), 600);<\/script>
-    </body></html>
-  `);
+  </div>
+  <div class="pad-footer">
+    (We provide all kind of Building Design, 3D View, Exterior/Interior 3D Visualization, Structural Design, Electrical Design, Plumbing Design, Pouroshova/Rajuk Sheet, Estimating &amp; Costing, Building Construction &amp; Supervision)
+  </div>
+  <script>setTimeout(() => { window.print(); }, 800 );<\/script>
+  </body></html>\`);
   win.document.close();
 };
+
 
 // ============================================================
 // EXCEL EXPORT
@@ -486,7 +542,7 @@ function Projects({ data, onRefresh }) {
 
   return (
     <div>
-      <SectionHeader title="প্রজেক্ট ব্যবস্থাপনা" action="নতুন প্রজেক্ট" onAction={openAdd} onExport={handleExport} onPrint={() => printSection("প্রজেক্ট তালিকা", "projects-content")} onUpload={handleUpload} uploadRef={uploadRef} />
+      <SectionHeader title="প্রজেক্ট ব্যবস্থাপনা" action="নতুন প্রজেক্ট" onAction={openAdd} onExport={handleExport} onPrint={() => { printSection("প্রজেক্ট তালিকা", "projects-content"); }} onUpload={handleUpload} uploadRef={uploadRef} />
       <div id="projects-content" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
         {data.map(p => (
           <Card key={p.id}>
@@ -586,7 +642,7 @@ function Clients({ data, onRefresh }) {
 
   return (
     <div>
-      <SectionHeader title="ক্লায়েন্ট ব্যবস্থাপনা" action="নতুন ক্লায়েন্ট" onAction={openAdd} onExport={handleExport} onPrint={() => printSection("ক্লায়েন্ট তালিকা", "clients-content")} onUpload={handleUpload} uploadRef={uploadRef} />
+      <SectionHeader title="ক্লায়েন্ট ব্যবস্থাপনা" action="নতুন ক্লায়েন্ট" onAction={openAdd} onExport={handleExport} onPrint={() => { printSection("ক্লায়েন্ট তালিকা", "clients-content"); }} onUpload={handleUpload} uploadRef={uploadRef} />
       <Card>
         <div id="clients-content" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -668,7 +724,7 @@ function Employees({ data, onRefresh }) {
         <StatCard icon="💰" label="মাসিক বেতন" value={fmt(totalSalary)} color="#FFF8E1" />
         <StatCard icon="🏢" label="বিভাগ" value={fmtNum([...new Set(data.map(e => e.dept))].length)} color="#F0FFF4" />
       </div>
-      <SectionHeader title="কর্মী ব্যবস্থাপনা (HR)" action="নতুন কর্মী" onAction={openAdd} onExport={handleExport} onPrint={() => printSection("কর্মী তালিকা", "employees-content")} onUpload={handleUpload} uploadRef={uploadRef} />
+      <SectionHeader title="কর্মী ব্যবস্থাপনা (HR)" action="নতুন কর্মী" onAction={openAdd} onExport={handleExport} onPrint={() => { printSection("কর্মী তালিকা", "employees-content"); }} onUpload={handleUpload} uploadRef={uploadRef} />
       <Card>
         <div id="employees-content" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -831,7 +887,7 @@ function Finance({ data, onRefresh }) {
         <StatCard icon="💸" label="মোট ব্যয়" value={fmt(totalExpense)} color="#FFF5F5" />
         <StatCard icon="📊" label="নিট লাভ" value={fmt(totalIncome - totalExpense)} color={totalIncome >= totalExpense ? "#F0FFF4" : "#FFF5F5"} />
       </div>
-      <SectionHeader title="আর্থিক ব্যবস্থাপনা" action="নতুন লেনদেন" onAction={openAdd} onExport={handleExport} onPrint={() => printSection("আর্থিক রিপোর্ট", "finance-content")} onUpload={handleUpload} uploadRef={uploadRef} />
+      <SectionHeader title="আর্থিক ব্যবস্থাপনা" action="নতুন লেনদেন" onAction={openAdd} onExport={handleExport} onPrint={() => { printSection("আর্থিক রিপোর্ট", "finance-content"); }} onUpload={handleUpload} uploadRef={uploadRef} />
       <Card>
         <div id="finance-content" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -908,7 +964,7 @@ function Materials({ data, onRefresh }) {
 
   return (
     <div>
-      <SectionHeader title="সামগ্রী ও ইনভেন্টরি" action="নতুন সামগ্রী" onAction={openAdd} onExport={handleExport} onPrint={() => printSection("সামগ্রী রিপোর্ট", "materials-content")} onUpload={handleUpload} uploadRef={uploadRef} />
+      <SectionHeader title="সামগ্রী ও ইনভেন্টরি" action="নতুন সামগ্রী" onAction={openAdd} onExport={handleExport} onPrint={() => { printSection("সামগ্রী রিপোর্ট", "materials-content"); }} onUpload={handleUpload} uploadRef={uploadRef} />
       <Card>
         <div id="materials-content" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -978,7 +1034,7 @@ function SiteProgress({ data, projects, onRefresh }) {
 
   return (
     <div>
-      <SectionHeader title="সাইট অগ্রগতি" action="নতুন আপডেট" onAction={openAdd} onExport={handleExport} onPrint={() => printSection("সাইট অগ্রগতি রিপোর্ট", "site-content")} />
+      <SectionHeader title="সাইট অগ্রগতি" action="নতুন আপডেট" onAction={openAdd} onExport={handleExport} onPrint={() => { printSection("সাইট অগ্রগতি রিপোর্ট", "site-content"); }} />
       <div id="site-content" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
         {[...data].reverse().map(s => (
           <Card key={s.id}>
@@ -1651,7 +1707,7 @@ function CPDailyUpdates({ projectId }) {
   const del = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("site_daily_updates").delete().eq("id", id); await load(); };
   return (
     <div>
-      <SectionHeader title="📅 Daily Work Updates" action="নতুন আপডেট" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => printSection("Daily Work Updates", "daily-print")} onExport={() => exportToExcel(items.map(i => ({ তারিখ: i.update_date, কাজ: i.work_done, ক্যাটাগরি: i.category, শ্রমিক: i.workers_count, আবহাওয়া: i.weather, অগ্রগতি: i.progress_pct + "%", সমস্যা: i.issues, পরবর্তী_পরিকল্পনা: i.next_plan, রিপোর্টকারী: i.reported_by })), "Daily", "Daily_Updates")} />
+      <SectionHeader title="📅 Daily Work Updates" action="নতুন আপডেট" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => { printSection("Daily Work Updates", "daily-print"); }} onExport={() => exportToExcel(items.map(i => ({ তারিখ: i.update_date, কাজ: i.work_done, ক্যাটাগরি: i.category, শ্রমিক: i.workers_count, আবহাওয়া: i.weather, অগ্রগতি: i.progress_pct + "%", সমস্যা: i.issues, পরবর্তী_পরিকল্পনা: i.next_plan, রিপোর্টকারী: i.reported_by })), "Daily", "Daily_Updates")} />
       <div id="daily-print">
         {items.length === 0 ? <Card style={{ textAlign: "center", padding: 40, color: C.gray400 }}>কোনো আপডেট নেই!</Card> : items.map(item => (
           <Card key={item.id} style={{ marginBottom: 12 }}>
@@ -1746,7 +1802,7 @@ function CPExpenses({ projectId }) {
         <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একটি খরচ</button>
         <button onClick={() => { setEditItem(null); setShowMultiModal(true); }} style={{ background: "#2A5C8F", color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একসাথে অনেক খরচ</button>
       </div>
-      <SectionHeader title="💸 Project Expenses" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => printSection("Project Expenses", "expenses-print")} onExport={() => exportToExcel(items.map(i => ({ তারিখ: i.expense_date, ক্যাটাগরি: i.category, আইটেম: i.item_name, বিবরণ: i.description, একক: i.unit, পরিমাণ: i.quantity, একক_মূল্য: i.unit_price, মোট: i.amount, সাপ্লায়ার: i.supplier, পেমেন্ট: i.payment_method, স্ট্যাটাস: i.payment_status })), "Expenses", "Site_Expenses")} />
+      <SectionHeader title="💸 Project Expenses" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => { printSection("Project Expenses", "expenses-print"); }} onExport={() => exportToExcel(items.map(i => ({ তারিখ: i.expense_date, ক্যাটাগরি: i.category, আইটেম: i.item_name, বিবরণ: i.description, একক: i.unit, পরিমাণ: i.quantity, একক_মূল্য: i.unit_price, মোট: i.amount, সাপ্লায়ার: i.supplier, পেমেন্ট: i.payment_method, স্ট্যাটাস: i.payment_status })), "Expenses", "Site_Expenses")} />
       {Object.keys(catGroups).length > 0 && (
         <Card style={{ marginBottom: 14 }}>
           <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 13, marginBottom: 8 }}>ক্যাটাগরি অনুযায়ী:</div>
@@ -1892,7 +1948,7 @@ function CPStock({ projectId }) {
   return (
     <div>
       {lowStock.length > 0 && <Card style={{ background: C.redLight, border: `1px solid #F5C6CB`, marginBottom: 14 }}><div style={{ fontWeight: 700, color: C.red, marginBottom: 8 }}>⚠️ কম স্টক:</div><div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{lowStock.map(i => <span key={i.id} style={{ background: C.white, padding: "4px 10px", borderRadius: 6, fontSize: 12, color: C.red, fontWeight: 600 }}>{i.item_name}: {i.closing_stock} {i.unit}</span>)}</div></Card>}
-      <SectionHeader title="🧱 Stock Register" action="নতুন আইটেম" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => printSection("Stock Register", "stock-print")} onExport={() => exportToExcel(items.map(i => ({ আইটেম: i.item_name, ক্যাটাগরি: i.category, একক: i.unit, প্রারম্ভিক: i.opening_stock, প্রাপ্ত: i.received, ব্যবহৃত: i.used, অবশিষ্ট: i.closing_stock, একক_মূল্য: i.unit_price, মোট_মূল্য: i.total_value, সাপ্লায়ার: i.supplier })), "Stock", "Stock_Register")} />
+      <SectionHeader title="🧱 Stock Register" action="নতুন আইটেম" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => { printSection("Stock Register", "stock-print"); }} onExport={() => exportToExcel(items.map(i => ({ আইটেম: i.item_name, ক্যাটাগরি: i.category, একক: i.unit, প্রারম্ভিক: i.opening_stock, প্রাপ্ত: i.received, ব্যবহৃত: i.used, অবশিষ্ট: i.closing_stock, একক_মূল্য: i.unit_price, মোট_মূল্য: i.total_value, সাপ্লায়ার: i.supplier })), "Stock", "Stock_Register")} />
       <Card>
         <div id="stock-print" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -1967,7 +2023,7 @@ function CPPayments({ projectId }) {
         <StatCard icon="💰" label="মোট প্রাপ্ত" value={fmt(totalReceived)} color="#F0FFF4" />
         <StatCard icon="📋" label="মোট কিস্তি" value={fmtNum(items.length)} color={C.primaryBg} />
       </div>
-      <SectionHeader title="💰 Office থেকে প্রাপ্ত টাকা" action="নতুন প্রাপ্তি" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => printSection("Office Payment Register", "payments-print")} onExport={() => exportToExcel(items.map(i => ({ তারিখ: i.receive_date, পরিমাণ: i.amount, কিস্তি: i.payment_type, পদ্ধতি: i.payment_method, প্রেরক: i.sender_name, গ্রহণকারী: i.received_by, রেফারেন্স: i.bank_ref || i.bkash_ref || "", নোট: i.note })), "Payments", "Office_Payments")} />
+      <SectionHeader title="💰 Office থেকে প্রাপ্ত টাকা" action="নতুন প্রাপ্তি" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => { printSection("Office Payment Register", "payments-print"); }} onExport={() => exportToExcel(items.map(i => ({ তারিখ: i.receive_date, পরিমাণ: i.amount, কিস্তি: i.payment_type, পদ্ধতি: i.payment_method, প্রেরক: i.sender_name, গ্রহণকারী: i.received_by, রেফারেন্স: i.bank_ref || i.bkash_ref || "", নোট: i.note })), "Payments", "Office_Payments")} />
       <Card>
         <div id="payments-print" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -2035,7 +2091,7 @@ function CPSummary({ project }) {
   const catGroups = expenses.reduce((acc, i) => { acc[i.category] = (acc[i.category] || 0) + (i.amount || 0); return acc; }, {});
   return (
     <div>
-      <SectionHeader title="📊 Project Summary" onPrint={() => printSection("Project Summary", "summary-print")} />
+      <SectionHeader title="📊 Project Summary" onPrint={() => { printSection("Project Summary", "summary-print"); }} />
       <div id="summary-print">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
           <StatCard icon="💰" label="চুক্তি মূল্য" value={fmt(dealAmount)} color={C.primaryBg} />
