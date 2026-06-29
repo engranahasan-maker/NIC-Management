@@ -202,16 +202,26 @@ function LoginPage({ onLogin }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    setLoading(true);
-    setError("");
-    ADMIN_PASS = localStorage.getItem("nic_password") || "noksha2024";
-    if (email === ADMIN_USER && pass === ADMIN_PASS) {
-      localStorage.setItem("nic_logged_in", "true");
-      onLogin();
-    } else {
-      setError("❌ ভুল ইমেইল বা পাসওয়ার্ড!");
+  const handleLogin = async () => {
+    setLoading(true); setError("");
+    if (!email || !pass) { setError("❌ ইমেইল ও পাসওয়ার্ড দিন!"); setLoading(false); return; }
+    // Check Supabase app_users table
+    const { data, error: dbErr } = await supabase.from("app_users").select("*").eq("email", email.trim().toLowerCase()).eq("password_hash", pass).eq("is_active", true).single();
+    if (dbErr || !data) {
+      // Fallback: check admin local password
+      ADMIN_PASS = localStorage.getItem("nic_password") || "noksha2024";
+      if (email === ADMIN_USER && pass === ADMIN_PASS) {
+        localStorage.setItem("nic_logged_in", "true");
+        localStorage.setItem("nic_user", JSON.stringify({ email, name: "মোঃ রানা", role: "admin", assigned_projects: [] }));
+        onLogin({ email, name: "মোঃ রানা", role: "admin", assigned_projects: [] });
+      } else {
+        setError("❌ ভুল ইমেইল বা পাসওয়ার্ড!");
+      }
+      setLoading(false); return;
     }
+    localStorage.setItem("nic_logged_in", "true");
+    localStorage.setItem("nic_user", JSON.stringify(data));
+    onLogin(data);
     setLoading(false);
   };
 
@@ -225,7 +235,7 @@ function LoginPage({ onLogin }) {
           <div style={{ fontSize: 12, color: C.gray400, marginTop: 8 }}>Management System v3.0</div>
         </div>
         {error && <div style={{ background: C.redLight, color: C.red, padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 16, textAlign: "center" }}>{error}</div>}
-        <FormField label="ইমেইল"><input style={inputStyle} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@noksha.com" onKeyDown={e => e.key === "Enter" && handleLogin()} /></FormField>
+        <FormField label="ইমেইল"><input style={inputStyle} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" onKeyDown={e => e.key === "Enter" && handleLogin()} /></FormField>
         <FormField label="পাসওয়ার্ড"><input style={inputStyle} type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && handleLogin()} /></FormField>
         <button onClick={handleLogin} disabled={loading} style={{ ...btnPrimary, background: loading ? C.gray400 : C.primary }}>
           {loading ? "লগইন হচ্ছে..." : "🔐 লগইন করুন"}
@@ -1452,17 +1462,23 @@ function BOQItemModal({ item, onSave, onClose, stdRates, existingRooms }) {
 // CONSTRUCTION PROJECTS MODULE
 // ============================================================
 
-function ConstructionProjects() {
+function ConstructionProjects({ currentUser }) {
   const [projects, setProjects] = useState([]);
   const [selProject, setSelProject] = useState(null);
   const [tab, setTab] = useState("daily");
   const [showNewProject, setShowNewProject] = useState(false);
+  const isAdmin = currentUser?.role === "admin";
 
   useEffect(() => { loadProjects(); }, []);
 
   const loadProjects = async () => {
     const { data } = await supabase.from("construction_projects").select("*").order("created_at", { ascending: false });
-    setProjects(data || []);
+    let all = data || [];
+    // Site Engineer শুধু assigned projects দেখবে
+    if (currentUser?.role === "site_engineer" && currentUser?.assigned_projects?.length > 0) {
+      all = all.filter(p => currentUser.assigned_projects.includes(p.id));
+    }
+    setProjects(all);
   };
 
   const CP_TABS = [
@@ -1477,7 +1493,7 @@ function ConstructionProjects() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <h2 style={{ margin: 0, color: C.primaryDark, fontSize: 18, fontWeight: 700 }}>🏚️ Construction Projects</h2>
-        <button onClick={() => setShowNewProject(true)} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>+ নতুন প্রজেক্ট</button>
+        {isAdmin && <button onClick={() => setShowNewProject(true)} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>+ নতুন প্রজেক্ট</button>}
       </div>
       <Card style={{ marginBottom: 16, padding: "14px 18px" }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -1924,27 +1940,137 @@ function CPSummary({ project }) {
 // ============================================================
 // MAIN APP
 // ============================================================
-const MENU = [
-  { id: "dashboard", icon: "🏠", label: "ড্যাশবোর্ড" },
-  { id: "projects", icon: "🏗️", label: "প্রজেক্ট" },
-  { id: "construction", icon: "🏚️", label: "Construction Projects" },
-  { id: "boq", icon: "📋", label: "BOQ সিস্টেম" },
-  { id: "clients", icon: "👥", label: "ক্লায়েন্ট" },
-  { id: "employees", icon: "👷", label: "কর্মী (HR)" },
-  { id: "attendance", icon: "📋", label: "উপস্থিতি" },
-  { id: "finance", icon: "💰", label: "আর্থিক" },
-  { id: "site", icon: "📍", label: "সাইট প্রগ্রেস" },
-  { id: "materials", icon: "📦", label: "সামগ্রী" },
-  { id: "analytics", icon: "📊", label: "রিপোর্ট & Analytics" },
-  { id: "password", icon: "🔑", label: "পাসওয়ার্ড" },
+const ALL_MENU = [
+  { id: "dashboard", icon: "🏠", label: "ড্যাশবোর্ড", roles: ["admin"] },
+  { id: "projects", icon: "🏗️", label: "প্রজেক্ট", roles: ["admin"] },
+  { id: "construction", icon: "🏚️", label: "Construction Projects", roles: ["admin", "site_engineer"] },
+  { id: "boq", icon: "📋", label: "BOQ সিস্টেম", roles: ["admin"] },
+  { id: "clients", icon: "👥", label: "ক্লায়েন্ট", roles: ["admin"] },
+  { id: "employees", icon: "👷", label: "কর্মী (HR)", roles: ["admin"] },
+  { id: "attendance", icon: "📋", label: "উপস্থিতি", roles: ["admin"] },
+  { id: "finance", icon: "💰", label: "আর্থিক", roles: ["admin"] },
+  { id: "site", icon: "📍", label: "সাইট প্রগ্রেস", roles: ["admin"] },
+  { id: "materials", icon: "📦", label: "সামগ্রী", roles: ["admin"] },
+  { id: "analytics", icon: "📊", label: "রিপোর্ট & Analytics", roles: ["admin"] },
+  { id: "users", icon: "👤", label: "User Management", roles: ["admin"] },
+  { id: "password", icon: "🔑", label: "পাসওয়ার্ড", roles: ["admin", "site_engineer"] },
 ];
+
+// ============================================================
+// USER MANAGEMENT (Admin only)
+// ============================================================
+function UserManagement() {
+  const [users, setUsers] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [form, setForm] = useState({ name: "", email: "", password_hash: "", role: "site_engineer", assigned_projects: [], is_active: true });
+
+  useEffect(() => { loadUsers(); loadProjects(); }, []);
+  const loadUsers = async () => { const { data } = await supabase.from("app_users").select("*").order("created_at"); setUsers(data || []); };
+  const loadProjects = async () => { const { data } = await supabase.from("construction_projects").select("id, name, client_name").order("created_at"); setProjects(data || []); };
+
+  const save = async () => {
+    if (!form.name || !form.email || !form.password_hash) return alert("নাম, ইমেইল ও পাসওয়ার্ড আবশ্যক");
+    if (editItem) {
+      await supabase.from("app_users").update({ ...form }).eq("id", editItem.id);
+    } else {
+      const { error } = await supabase.from("app_users").insert([{ ...form }]);
+      if (error) return alert("Error: " + error.message);
+    }
+    await loadUsers(); setShowModal(false); setEditItem(null);
+  };
+
+  const toggleActive = async (user) => {
+    await supabase.from("app_users").update({ is_active: !user.is_active }).eq("id", user.id);
+    await loadUsers();
+  };
+
+  const del = async (id) => {
+    if (!confirm("এই user মুছবেন?")) return;
+    await supabase.from("app_users").delete().eq("id", id);
+    await loadUsers();
+  };
+
+  const toggleProject = (projId) => {
+    setForm(f => {
+      const arr = f.assigned_projects || [];
+      return { ...f, assigned_projects: arr.includes(projId) ? arr.filter(x => x !== projId) : [...arr, projId] };
+    });
+  };
+
+  return (
+    <div>
+      <SectionHeader title="👤 User Management" action="নতুন User" onAction={() => { setEditItem(null); setForm({ name: "", email: "", password_hash: "", role: "site_engineer", assigned_projects: [], is_active: true }); setShowModal(true); }} />
+      <Card>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead><tr style={{ background: C.primaryBg }}>
+            {["নাম", "ইমেইল", "Role", "Assigned Projects", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {users.map(u => (
+              <tr key={u.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{u.name}</td>
+                <td style={{ padding: "10px 14px" }}>{u.email}</td>
+                <td style={{ padding: "10px 14px" }}><Badge label={u.role === "admin" ? "🔑 Admin" : "👷 Site Engineer"} color={u.role === "admin" ? "green" : "blue"} /></td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600 }}>
+                  {u.role === "admin" ? "সব প্রজেক্ট" : (u.assigned_projects?.length > 0 ? projects.filter(p => u.assigned_projects.includes(p.id)).map(p => p.name).join(", ") : "কোনো প্রজেক্ট নেই")}
+                </td>
+                <td style={{ padding: "10px 14px" }}><Badge label={u.is_active ? "✅ সক্রিয়" : "❌ নিষ্ক্রিয়"} color={u.is_active ? "green" : "red"} /></td>
+                <td style={{ padding: "10px 14px" }}>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => { setEditItem(u); setForm({ ...u, password_hash: "" }); setShowModal(true); }} style={btnEdit}>✏️</button>
+                    <button onClick={() => toggleActive(u)} style={{ ...btnEdit, background: u.is_active ? C.yellowLight : C.greenLight }}>{u.is_active ? "⏸️" : "▶️"}</button>
+                    {u.role !== "admin" && <button onClick={() => del(u.id)} style={btnDanger}>🗑️</button>}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      {showModal && (
+        <Modal title={editItem ? "User সম্পাদনা" : "নতুন User তৈরি করুন"} onClose={() => { setShowModal(false); setEditItem(null); }} size={520}>
+          <FormField label="পূর্ণ নাম *"><input style={inputStyle} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="ইঞ্জিনিয়ারের নাম" /></FormField>
+          <FormField label="ইমেইল *"><input style={inputStyle} type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="engineer@noksha.com" /></FormField>
+          <FormField label={editItem ? "নতুন পাসওয়ার্ড (পরিবর্তন করতে চাইলে)" : "পাসওয়ার্ড *"}><input style={inputStyle} type="text" value={form.password_hash} onChange={e => setForm({ ...form, password_hash: e.target.value })} placeholder="password123" /></FormField>
+          <FormField label="Role"><select style={inputStyle} value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}><option value="site_engineer">👷 Site Engineer</option><option value="admin">🔑 Admin</option></select></FormField>
+          {form.role === "site_engineer" && projects.length > 0 && (
+            <FormField label="Assigned Projects (যে প্রজেক্টে access পাবে)">
+              <div style={{ border: `1px solid ${C.gray200}`, borderRadius: 8, padding: 12, maxHeight: 200, overflowY: "auto" }}>
+                {projects.map(p => (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }} onClick={() => toggleProject(p.id)}>
+                    <input type="checkbox" checked={(form.assigned_projects || []).includes(p.id)} onChange={() => toggleProject(p.id)} style={{ accentColor: C.primary, width: 16, height: 16 }} />
+                    <span style={{ fontSize: 13 }}>{p.name} — {p.client_name}</span>
+                  </div>
+                ))}
+              </div>
+            </FormField>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} style={{ accentColor: C.primary, width: 16, height: 16 }} />
+            <label style={{ fontSize: 13, fontWeight: 600, color: C.gray800 }}>সক্রিয় করুন</label>
+          </div>
+          <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(localStorage.getItem("nic_logged_in") === "true");
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("nic_user") || "null"); } catch { return null; }
+  });
   const [active, setActive] = useState("dashboard");
   const [sideOpen, setSideOpen] = useState(true);
   const [data, setData] = useState({ projects: [], clients: [], employees: [], transactions: [], siteProgress: [], materials: [] });
   const [loading, setLoading] = useState(true);
+
+  const isAdmin = currentUser?.role === "admin";
+  const isSiteEngineer = currentUser?.role === "site_engineer";
 
   useEffect(() => { if (loggedIn) loadAll(); }, [loggedIn]);
 
@@ -1962,9 +2088,9 @@ export default function App() {
     setLoading(false);
   };
 
-  const logout = () => { localStorage.removeItem("nic_logged_in"); setLoggedIn(false); };
+  const logout = () => { localStorage.removeItem("nic_logged_in"); localStorage.removeItem("nic_user"); setLoggedIn(false); setCurrentUser(null); };
 
-  if (!loggedIn) return <LoginPage onLogin={() => setLoggedIn(true)} />;
+  if (!loggedIn) return <LoginPage onLogin={(user) => { setCurrentUser(user); setLoggedIn(true); if (user.role === "site_engineer") setActive("construction"); }} />;
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.gray50, fontFamily: "'Hind Siliguri', Arial, sans-serif" }}>
@@ -1977,7 +2103,7 @@ export default function App() {
           </div>
         </div>
         <nav style={{ flex: 1, padding: "8px 0", overflowY: "auto" }}>
-          {MENU.map(m => (
+          {ALL_MENU.filter(m => m.roles.includes(currentUser?.role || "admin")).map(m => (
             <button key={m.id} onClick={() => setActive(m.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: sideOpen ? "10px 18px" : "10px 0", justifyContent: sideOpen ? "flex-start" : "center", background: active === m.id ? `rgba(255,255,255,0.12)` : "none", border: "none", borderLeft: active === m.id ? `3px solid ${C.primaryLight}` : "3px solid transparent", color: active === m.id ? C.white : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12, fontWeight: active === m.id ? 700 : 400, fontFamily: "inherit", transition: "all 0.15s" }}>
               <span style={{ fontSize: 16, flexShrink: 0 }}>{m.icon}</span>
               {sideOpen && <span style={{ whiteSpace: "nowrap", fontSize: 13 }}>{m.label}</span>}
@@ -1996,35 +2122,39 @@ export default function App() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ background: C.white, borderBottom: `1px solid ${C.gray200}`, padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 100, borderTop: `3px solid ${C.primary}` }}>
           <div>
-            <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 16 }}>{MENU.find(m => m.id === active)?.label}</div>
+            <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 16 }}>{ALL_MENU.find(m => m.id === active)?.label}</div>
             <div style={{ fontSize: 11, color: C.gray400 }}>Noksha Interior & Construction · ফরিদপুর & ঢাকা</div>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <button onClick={loadAll} style={{ background: C.primaryBg, border: `1px solid ${C.primaryLight}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, color: C.primaryDark, fontFamily: "inherit" }}>🔄 রিফ্রেশ</button>
-            <div style={{ width: 36, height: 36, background: C.primary, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: C.white, fontWeight: 700, fontSize: 14 }}>R</div>
-            <div style={{ fontSize: 12, color: C.gray600 }}><div style={{ fontWeight: 600, color: C.primaryDark }}>মোঃ রানা</div><div>Admin</div></div>
+            {isAdmin && <button onClick={loadAll} style={{ background: C.primaryBg, border: `1px solid ${C.primaryLight}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, color: C.primaryDark, fontFamily: "inherit" }}>🔄 রিফ্রেশ</button>}
+            <div style={{ width: 36, height: 36, background: C.primary, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: C.white, fontWeight: 700, fontSize: 14 }}>{currentUser?.name?.[0] || "R"}</div>
+            <div style={{ fontSize: 12, color: C.gray600 }}>
+              <div style={{ fontWeight: 600, color: C.primaryDark }}>{currentUser?.name || "মোঃ রানা"}</div>
+              <div>{currentUser?.role === "admin" ? "Admin" : "Site Engineer"}</div>
+            </div>
           </div>
         </div>
 
         <div style={{ flex: 1, padding: "20px 24px", overflowY: "auto" }}>
-          {loading ? (
+          {loading && isAdmin ? (
             <div style={{ textAlign: "center", padding: 60, color: C.gray400 }}>
               <div style={{ fontSize: 40, marginBottom: 16 }}>⏳</div>
               <div style={{ color: C.primary, fontWeight: 600 }}>ডেটা লোড হচ্ছে...</div>
             </div>
           ) : (
             <>
-              {active === "dashboard" && <Dashboard projects={data.projects} clients={data.clients} employees={data.employees} transactions={data.transactions} materials={data.materials} />}
-              {active === "projects" && <Projects data={data.projects} onRefresh={loadAll} />}
-              {active === "construction" && <ConstructionProjects />}
-              {active === "boq" && <BOQSystem />}
-              {active === "clients" && <Clients data={data.clients} onRefresh={loadAll} />}
-              {active === "employees" && <Employees data={data.employees} onRefresh={loadAll} />}
-              {active === "attendance" && <Attendance employees={data.employees} />}
-              {active === "finance" && <Finance data={data.transactions} onRefresh={loadAll} />}
-              {active === "site" && <SiteProgress data={data.siteProgress} projects={data.projects} onRefresh={loadAll} />}
-              {active === "materials" && <Materials data={data.materials} onRefresh={loadAll} />}
-              {active === "analytics" && <Analytics transactions={data.transactions} projects={data.projects} employees={data.employees} />}
+              {active === "dashboard" && isAdmin && <Dashboard projects={data.projects} clients={data.clients} employees={data.employees} transactions={data.transactions} materials={data.materials} />}
+              {active === "projects" && isAdmin && <Projects data={data.projects} onRefresh={loadAll} />}
+              {active === "construction" && <ConstructionProjects currentUser={currentUser} />}
+              {active === "boq" && isAdmin && <BOQSystem />}
+              {active === "clients" && isAdmin && <Clients data={data.clients} onRefresh={loadAll} />}
+              {active === "employees" && isAdmin && <Employees data={data.employees} onRefresh={loadAll} />}
+              {active === "attendance" && isAdmin && <Attendance employees={data.employees} />}
+              {active === "finance" && isAdmin && <Finance data={data.transactions} onRefresh={loadAll} />}
+              {active === "site" && isAdmin && <SiteProgress data={data.siteProgress} projects={data.projects} onRefresh={loadAll} />}
+              {active === "materials" && isAdmin && <Materials data={data.materials} onRefresh={loadAll} />}
+              {active === "analytics" && isAdmin && <Analytics transactions={data.transactions} projects={data.projects} employees={data.employees} />}
+              {active === "users" && isAdmin && <UserManagement />}
               {active === "password" && <PasswordChange />}
             </>
           )}
