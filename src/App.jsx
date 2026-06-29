@@ -76,7 +76,7 @@ const printSection = (title, contentId) => {
     </style></head><body>
     <div class="pad-header">
       <div class="pad-logo">
-        <img src="data:image/png;base64,${NOKSHA_LOGO_B64}" alt="Noksha" />
+        <img src="https://jijxnycopycsysugppnw.supabase.co/storage/v1/object/public/Upload%20images/icon.png" alt="Noksha" />
         <div class="pad-logo-text">
           <div class="name">NOKSHA</div>
           <div class="sub">INTERIOR &amp; CONSTRUCTION</div>
@@ -293,7 +293,7 @@ function LoginPage({ onLogin }) {
     <div style={{ minHeight: "100vh", background: `linear-gradient(135deg, ${C.primaryDark} 0%, ${C.primary} 60%, ${C.primaryLight} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: C.white, borderRadius: 20, padding: 40, width: "100%", maxWidth: 400, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <img src={`data:image/png;base64,${NOKSHA_ICON_B64}`} alt="Noksha" style={{ width: 80, height: 80, objectFit: "contain", margin: "0 auto 16px", display: "block" }} />
+          <img src="https://jijxnycopycsysugppnw.supabase.co/storage/v1/object/public/Upload%20images/icon.png" alt="Noksha" style={{ width: 80, height: 80, objectFit: "contain", margin: "0 auto 16px", display: "block" }} />
           <div style={{ fontSize: 28, fontWeight: 900, color: C.primary, letterSpacing: 2 }}>NOKSHA</div>
           <div style={{ fontSize: 12, color: C.primaryLight, fontWeight: 700, letterSpacing: 3, marginTop: 2 }}>INTERIOR & CONSTRUCTION</div>
           <div style={{ fontSize: 12, color: C.gray400, marginTop: 8 }}>Management System v3.0</div>
@@ -2346,7 +2346,7 @@ export default function App() {
       <div style={{ width: sideOpen ? 230 : 60, background: C.primaryDark, display: "flex", flexDirection: "column", transition: "width 0.3s", flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflow: "hidden" }}>
         <div style={{ padding: sideOpen ? "18px 18px 14px" : "18px 10px 14px", borderBottom: `1px solid rgba(255,255,255,0.1)` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <img src={`data:image/png;base64,${NOKSHA_ICON_B64}`} alt="N" style={{ width: 36, height: 36, objectFit: "contain", flexShrink: 0 }} />
+            <img src="https://jijxnycopycsysugppnw.supabase.co/storage/v1/object/public/Upload%20images/icon.png" alt="N" style={{ width: 36, height: 36, objectFit: "contain", flexShrink: 0 }} />
             {sideOpen && <div><div style={{ color: C.white, fontWeight: 900, fontSize: 15, letterSpacing: 1 }}>NOKSHA</div><div style={{ color: "rgba(255,255,255,0.5)", fontSize: 9, letterSpacing: 2 }}>INTERIOR & CONSTRUCTION</div></div>}
           </div>
         </div>
