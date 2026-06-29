@@ -1524,7 +1524,7 @@ function ConstructionProjects() {
         </>
       )}
       {showNewProject && <CPNewProjectModal onSave={async (form) => {
-        const { error } = await supabase.from("construction_projects").insert([{ ...form, total_budget: +form.total_budget || 0, deal_amount: +form.deal_amount || 0 }]);
+        const { error } = await supabase.from("construction_projects").insert([{ ...form, total_budget: +form.total_budget || 0, deal_amount: +form.deal_amount || 0, start_date: form.start_date || null, end_date: form.end_date || null }]);
         if (error) return alert("Error: " + error.message);
         await loadProjects(); setShowNewProject(false);
       }} onClose={() => setShowNewProject(false)} />}
@@ -1548,7 +1548,7 @@ function CPNewProjectModal({ onSave, onClose }) {
         <FormField label="চুক্তি মূল্য (৳)"><input style={inputStyle} type="number" value={form.deal_amount} onChange={e => setForm({ ...form, deal_amount: e.target.value })} placeholder="0" /></FormField>
         <FormField label="মোট বাজেট (৳)"><input style={inputStyle} type="number" value={form.total_budget} onChange={e => setForm({ ...form, total_budget: e.target.value })} placeholder="0" /></FormField>
       </div>
-      <button onClick={() => { if (!form.name || !form.client_name) return alert("নাম ও ক্লায়েন্ট আবশ্যক"); onSave(form); }} style={btnPrimary}>✅ প্রজেক্ট তৈরি করুন</button>
+      <button onClick={() => { if (!form.name || !form.client_name) return alert("নাম ও ক্লায়েন্ট আবশ্যক"); onSave({ ...form, start_date: form.start_date || null, end_date: form.end_date || null }); }} style={btnPrimary}>✅ প্রজেক্ট তৈরি করুন</button>
     </Modal>
   );
 }
