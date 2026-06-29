@@ -1057,16 +1057,42 @@ function BOQSystem() {
   };
 
   const saveBOQItem = async (form) => {
-    const qty = Number(form.qty) || 0; const rate = Number(form.rate) || 0;
-    const payload = { project_id: selProj, room_name: form.room_name, code_no: form.code_no, item_no: Number(form.item_no) || 1, item_name: form.item_name, work_description: form.work_description, specification: form.specification, unit: form.unit, qty, rate, amount: qty * rate, is_rate_fixed: form.is_rate_fixed || false };
-    if (editItem) { await supabase.from("project_boq").update(payload).eq("id", editItem.id); }
-    else { await supabase.from("project_boq").insert(payload); }
-    await loadBOQ(selProj); setShowItemModal(false); setEditItem(null);
+    if (!selProj) return alert("আগে একটি Project select করুন!");
+    const qty = Number(form.qty) || 0;
+    const rate = Number(form.rate) || 0;
+    const amount = qty * rate;
+    const payload = {
+      project_id: selProj,
+      room_name: form.room_name || "Master Bedroom",
+      code_no: form.code_no || "",
+      item_no: Number(form.item_no) || 1,
+      item_name: form.item_name || "",
+      work_description: form.work_description || "",
+      specification: form.specification || "",
+      unit: form.unit || "sft",
+      qty,
+      rate,
+      amount,
+      is_rate_fixed: form.is_rate_fixed || false
+    };
+    let result;
+    if (editItem) {
+      result = await supabase.from("project_boq").update(payload).eq("id", editItem.id);
+    } else {
+      result = await supabase.from("project_boq").insert([payload]);
+    }
+    if (result.error) {
+      alert("সংরক্ষণ ব্যর্থ: " + result.error.message);
+      return;
+    }
+    await loadBOQ(selProj);
+    setShowItemModal(false);
+    setEditItem(null);
   };
 
   const deleteBOQItem = async (id) => { if (!confirm("Item মুছবেন?")) return; await supabase.from("project_boq").delete().eq("id", id); await loadBOQ(selProj); };
 
-  const saveExpense = async (form) => { const qty2 = Number(form.qty) || 1; const rate2 = Number(form.rate) || 0; await supabase.from("project_expenses").insert({ project_id: selProj, expense_date: form.expense_date, item_name: form.item_name, description: form.description, qty: qty2, rate: rate2, amount: qty2 * rate2, category: form.category || "material" }); await loadExpenses(selProj); };
+  const saveExpense = async (form) => { if (!selProj) return alert("আগে Project select করুন!"); const qty2 = Number(form.qty) || 1; const rate2 = Number(form.rate) || 0; const r = await supabase.from("project_expenses").insert([{ project_id: selProj, expense_date: form.expense_date || new Date().toISOString().split("T")[0], item_name: form.item_name || "", description: form.description || "", qty: qty2, rate: rate2, amount: qty2 * rate2, category: form.category || "material" }]); if (r.error) { alert("Error: " + r.error.message); return; } await loadExpenses(selProj); };
   const deleteExpense = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("project_expenses").delete().eq("id", id); await loadExpenses(selProj); };
 
   const updateDelivery = async (val) => { await supabase.from("project_settings").update({ delivery_charge: Number(val) || 0 }).eq("project_id", selProj); await loadSettings(selProj); };
