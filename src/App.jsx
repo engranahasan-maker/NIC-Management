@@ -2196,6 +2196,7 @@ const ALL_MENU = [
   { id: "dashboard", icon: "🏠", label: "ড্যাশবোর্ড", roles: ["admin"] },
   { id: "projects", icon: "🏗️", label: "প্রজেক্ট", roles: ["admin"] },
   { id: "construction", icon: "🏚️", label: "Construction Projects", roles: ["admin", "site_engineer"] },
+  { id: "interior", icon: "🛋️", label: "Interior Projects", roles: ["admin", "site_engineer"] },
   { id: "boq", icon: "📋", label: "BOQ সিস্টেম", roles: ["admin"] },
   { id: "clients", icon: "👥", label: "ক্লায়েন্ট", roles: ["admin"] },
   { id: "employees", icon: "👷", label: "কর্মী (HR)", roles: ["admin"] },
@@ -2208,6 +2209,552 @@ const ALL_MENU = [
   { id: "password", icon: "🔑", label: "পাসওয়ার্ড", roles: ["admin", "site_engineer"] },
 ];
 
+
+
+// ============================================================
+// INTERIOR PROJECTS MODULE
+// ============================================================
+function InteriorProjects({ currentUser }) {
+  const [projects, setProjects] = useState([]);
+  const [selProject, setSelProject] = useState(null);
+  const [tab, setTab] = useState("daily");
+  const [showNewProject, setShowNewProject] = useState(false);
+  const isAdmin = currentUser?.role === "admin";
+
+  useEffect(() => { loadProjects(); }, []);
+
+  const loadProjects = async () => {
+    const { data } = await supabase.from("interior_projects").select("*").order("created_at", { ascending: false });
+    let all = data || [];
+    if (currentUser?.role === "site_engineer" && currentUser?.assigned_projects?.length > 0) {
+      all = all.filter(p => currentUser.assigned_projects.includes(p.id));
+    }
+    setProjects(all);
+  };
+
+  const IP_TABS = [
+    { id: "daily", icon: "📅", label: "Daily Updates" },
+    { id: "expenses", icon: "💸", label: "Expenses" },
+    { id: "stock", icon: "🪑", label: "Stock Register" },
+    { id: "payments", icon: "💰", label: "Office থেকে টাকা" },
+    { id: "summary", icon: "📊", label: "Project Summary" },
+  ];
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h2 style={{ margin: 0, color: C.primaryDark, fontSize: 18, fontWeight: 700 }}>🛋️ Interior Projects</h2>
+        {isAdmin && <button onClick={() => setShowNewProject(true)} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>+ নতুন প্রজেক্ট</button>}
+      </div>
+
+      <Card style={{ marginBottom: 16, padding: "14px 18px" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <label style={{ fontWeight: 700, color: C.primaryDark, fontSize: 13, flexShrink: 0 }}>প্রজেক্ট বেছে নিন:</label>
+          <select value={selProject?.id || ""} onChange={e => { const p = projects.find(x => x.id === e.target.value); setSelProject(p || null); setTab("daily"); }} style={{ ...inputStyle, maxWidth: 380, padding: "8px 12px" }}>
+            <option value="">— প্রজেক্ট সিলেক্ট করুন —</option>
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name} — {p.client_name}</option>)}
+          </select>
+          {selProject && <span style={{ fontSize: 12, color: C.primaryLight, fontWeight: 600 }}>📍 {selProject.site_address}</span>}
+        </div>
+      </Card>
+
+      {!selProject ? (
+        <Card style={{ textAlign: "center", padding: "50px 20px" }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🛋️</div>
+          <div style={{ color: C.primaryDark, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Interior Project Management</div>
+          <div style={{ color: C.gray600, fontSize: 13 }}>{projects.length > 0 ? `${projects.length}টি প্রজেক্ট আছে। উপর থেকে বেছে নিন।` : "শুরু করতে নতুন প্রজেক্ট তৈরি করুন।"}</div>
+        </Card>
+      ) : (
+        <>
+          <div style={{ background: `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`, borderRadius: 12, padding: "14px 20px", marginBottom: 16, color: C.white, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{selProject.name}</div>
+              <div style={{ fontSize: 12, opacity: 0.8, marginTop: 3 }}>ক্লায়েন্ট: {selProject.client_name} | {selProject.site_address}</div>
+            </div>
+            <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ textAlign: "center" }}><div style={{ fontSize: 11, opacity: 0.7 }}>ধরন</div><div style={{ fontSize: 12, fontWeight: 700 }}>{selProject.project_type}</div></div>
+              <div style={{ textAlign: "center" }}><div style={{ fontSize: 11, opacity: 0.7 }}>চুক্তি</div><div style={{ fontSize: 13, fontWeight: 700 }}>{fmt(selProject.deal_amount)}</div></div>
+              <span style={{ background: "rgba(255,255,255,0.2)", padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>{selProject.status}</span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `2px solid ${C.gray200}`, overflowX: "auto" }}>
+            {IP_TABS.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "10px 16px", border: "none", borderBottom: tab === t.id ? `3px solid ${C.primary}` : "3px solid transparent", background: "none", color: tab === t.id ? C.primaryDark : C.gray600, fontWeight: tab === t.id ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "daily" && <IPDailyUpdates projectId={selProject.id} />}
+          {tab === "expenses" && <IPExpenses projectId={selProject.id} />}
+          {tab === "stock" && <IPStock projectId={selProject.id} />}
+          {tab === "payments" && <IPPayments projectId={selProject.id} />}
+          {tab === "summary" && <IPSummary project={selProject} />}
+        </>
+      )}
+
+      {showNewProject && (
+        <Modal title="নতুন Interior প্রজেক্ট" onClose={() => setShowNewProject(false)} size={580}>
+          {(() => {
+            const [f, setF] = useState({ name: "", client_name: "", site_address: "", project_type: "আবাসিক ইন্টেরিয়র", start_date: "", end_date: "", chief_designer: "", total_budget: "", deal_amount: "", status: "চলমান" });
+            return (
+              <div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div style={{ gridColumn: "1/-1" }}><FormField label="প্রজেক্টের নাম *"><input style={inputStyle} value={f.name} onChange={e => setF({ ...f, name: e.target.value })} placeholder="যেমন: রহিম সাহেবের ফ্ল্যাট ইন্টেরিয়র" /></FormField></div>
+                  <FormField label="ক্লায়েন্টের নাম *"><input style={inputStyle} value={f.client_name} onChange={e => setF({ ...f, client_name: e.target.value })} /></FormField>
+                  <FormField label="প্রজেক্টের ধরন"><select style={inputStyle} value={f.project_type} onChange={e => setF({ ...f, project_type: e.target.value })}>{["আবাসিক ইন্টেরিয়র", "কমার্শিয়াল ইন্টেরিয়র", "অফিস ইন্টেরিয়র", "রেস্তোরাঁ ইন্টেরিয়র", "মডুলার কিচেন", "থ্রিডি ডিজাইন", "রিনোভেশন", "অন্যান্য"].map(t => <option key={t}>{t}</option>)}</select></FormField>
+                  <div style={{ gridColumn: "1/-1" }}><FormField label="সাইটের ঠিকানা"><input style={inputStyle} value={f.site_address} onChange={e => setF({ ...f, site_address: e.target.value })} /></FormField></div>
+                  <FormField label="প্রধান ডিজাইনার"><input style={inputStyle} value={f.chief_designer} onChange={e => setF({ ...f, chief_designer: e.target.value })} /></FormField>
+                  <FormField label="স্ট্যাটাস"><select style={inputStyle} value={f.status} onChange={e => setF({ ...f, status: e.target.value })}>{["চলমান", "বিরতি", "সম্পন্ন", "বাতিল"].map(s => <option key={s}>{s}</option>)}</select></FormField>
+                  <FormField label="শুরুর তারিখ"><input style={inputStyle} type="date" value={f.start_date} onChange={e => setF({ ...f, start_date: e.target.value })} /></FormField>
+                  <FormField label="শেষের তারিখ"><input style={inputStyle} type="date" value={f.end_date} onChange={e => setF({ ...f, end_date: e.target.value })} /></FormField>
+                  <FormField label="চুক্তি মূল্য (৳)"><input style={inputStyle} type="number" value={f.deal_amount} onChange={e => setF({ ...f, deal_amount: e.target.value })} /></FormField>
+                  <FormField label="মোট বাজেট (৳)"><input style={inputStyle} type="number" value={f.total_budget} onChange={e => setF({ ...f, total_budget: e.target.value })} /></FormField>
+                </div>
+                <button onClick={async () => {
+                  if (!f.name || !f.client_name) return alert("নাম ও ক্লায়েন্ট আবশ্যক");
+                  const { error } = await supabase.from("interior_projects").insert([{ ...f, total_budget: +f.total_budget || 0, deal_amount: +f.deal_amount || 0, start_date: f.start_date || null, end_date: f.end_date || null }]);
+                  if (error) return alert("Error: " + error.message);
+                  await loadProjects(); setShowNewProject(false);
+                }} style={btnPrimary}>✅ প্রজেক্ট তৈরি করুন</button>
+              </div>
+            );
+          })()}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ---- INTERIOR DAILY UPDATES ----
+function IPDailyUpdates({ projectId }) {
+  const [items, setItems] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const emptyForm = { update_date: new Date().toISOString().split("T")[0], work_done: "", category: "ফার্নিচার কাজ", workers_count: "", progress_pct: "", issues: "", next_plan: "", reported_by: "", image_url: "" };
+  const [form, setForm] = useState(emptyForm);
+  const categories = ["ফার্নিচার কাজ", "সিলিং কাজ", "ওয়াল প্যানেলিং", "ফ্লোরিং", "পেইন্টিং", "ইলেকট্রিক", "প্লাম্বিং", "কিচেন ক্যাবিনেট", "ওয়ার্ডরোব", "গ্লাস ওয়ার্ক", "কার্টেন/ব্লাইন্ড", "লাইটিং", "পরিষ্কার", "থ্রিডি ভিজ্যুয়ালাইজেশন", "ক্লায়েন্ট মিটিং", "অন্যান্য"];
+  useEffect(() => { load(); }, [projectId]);
+  const load = async () => { const { data } = await supabase.from("interior_daily_updates").select("*").eq("project_id", projectId).order("update_date", { ascending: false }); setItems(data || []); };
+  const save = async () => {
+    if (!form.work_done) return alert("কাজের বিবরণ আবশ্যক");
+    const payload = { ...form, project_id: projectId, workers_count: +form.workers_count || 0, progress_pct: +form.progress_pct || 0 };
+    if (editItem) { await supabase.from("interior_daily_updates").update(payload).eq("id", editItem.id); }
+    else { await supabase.from("interior_daily_updates").insert([payload]); }
+    await load(); setShowModal(false); setEditItem(null);
+  };
+  const del = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("interior_daily_updates").delete().eq("id", id); await load(); };
+  return (
+    <div>
+      <SectionHeader title="📅 Daily Work Updates" action="নতুন আপডেট" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => { printSection("Interior Daily Updates", "ip-daily-print"); }} onExport={() => exportToExcel(items.map(i => ({ তারিখ: i.update_date, কাজ: i.work_done, ক্যাটাগরি: i.category, শ্রমিক: i.workers_count, অগ্রগতি: i.progress_pct + "%", সমস্যা: i.issues, পরিকল্পনা: i.next_plan, রিপোর্টকারী: i.reported_by })), "IPDaily", "Interior_Daily")} />
+      <div id="ip-daily-print">
+        {items.length === 0 ? <Card style={{ textAlign: "center", padding: 40, color: C.gray400 }}>কোনো আপডেট নেই!</Card> : items.map(item => (
+          <Card key={item.id} style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 700, color: C.primary, fontSize: 14 }}>📅 {item.update_date}</span>
+                  <Badge label={item.category} color="primary" />
+                  {item.workers_count > 0 && <Badge label={`👷 ${item.workers_count} জন`} color="blue" />}
+                  {item.progress_pct > 0 && <Badge label={`📈 ${item.progress_pct}%`} color="green" />}
+                </div>
+                <div style={{ fontWeight: 600, color: C.primaryDark, fontSize: 14, marginBottom: 6 }}>{item.work_done}</div>
+                {item.issues && <div style={{ fontSize: 12, color: C.red, background: C.redLight, padding: "6px 10px", borderRadius: 6, marginBottom: 6 }}>⚠️ {item.issues}</div>}
+                {item.next_plan && <div style={{ fontSize: 12, color: C.gray600, background: C.gray50, padding: "6px 10px", borderRadius: 6 }}>📋 {item.next_plan}</div>}
+                {item.reported_by && <div style={{ fontSize: 11, color: C.gray400, marginTop: 4 }}>রিপোর্টকারী: {item.reported_by}</div>}
+                {item.image_url && <img src={item.image_url} alt="Work" style={{ maxWidth: "100%", maxHeight: 150, borderRadius: 8, marginTop: 8, objectFit: "cover" }} />}
+              </div>
+              <div style={{ display: "flex", gap: 6, marginLeft: 12 }}>
+                <button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button>
+                <button onClick={() => del(item.id)} style={btnDanger}>🗑️</button>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+      {showModal && (
+        <Modal title={editItem ? "আপডেট সম্পাদনা" : "নতুন Daily Update"} onClose={() => { setShowModal(false); setEditItem(null); }} size={600}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="তারিখ *"><input style={inputStyle} type="date" value={form.update_date} onChange={e => setForm({ ...form, update_date: e.target.value })} /></FormField>
+            <FormField label="ক্যাটাগরি"><select style={inputStyle} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>{categories.map(c => <option key={c}>{c}</option>)}</select></FormField>
+            <div style={{ gridColumn: "1/-1" }}><FormField label="আজকের কাজের বিবরণ *"><textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} value={form.work_done} onChange={e => setForm({ ...form, work_done: e.target.value })} placeholder="আজকে কী কী কাজ হয়েছে..." /></FormField></div>
+            <FormField label="শ্রমিক/কারিগর সংখ্যা"><input style={inputStyle} type="number" value={form.workers_count} onChange={e => setForm({ ...form, workers_count: e.target.value })} /></FormField>
+            <FormField label="অগ্রগতি (%)"><input style={inputStyle} type="number" min="0" max="100" value={form.progress_pct} onChange={e => setForm({ ...form, progress_pct: e.target.value })} /></FormField>
+            <FormField label="রিপোর্টকারী"><input style={inputStyle} value={form.reported_by} onChange={e => setForm({ ...form, reported_by: e.target.value })} placeholder="ডিজাইনার/সুপারভাইজার" /></FormField>
+            <div></div>
+            <div style={{ gridColumn: "1/-1" }}><FormField label="সমস্যা / ইস্যু"><textarea style={{ ...inputStyle, height: 60, resize: "vertical" }} value={form.issues} onChange={e => setForm({ ...form, issues: e.target.value })} /></FormField></div>
+            <div style={{ gridColumn: "1/-1" }}><FormField label="পরবর্তী পরিকল্পনা"><textarea style={{ ...inputStyle, height: 60, resize: "vertical" }} value={form.next_plan} onChange={e => setForm({ ...form, next_plan: e.target.value })} /></FormField></div>
+            <div style={{ gridColumn: "1/-1" }}><ImageUploadField label="📷 কাজের ছবি (ঐচ্ছিক)" value={form.image_url} onChange={url => setForm(f => ({ ...f, image_url: url }))} folder="interior-daily" /></div>
+          </div>
+          <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ---- INTERIOR EXPENSES ----
+function IPExpenses({ projectId }) {
+  const [items, setItems] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [showMultiModal, setShowMultiModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const emptyForm = { expense_date: new Date().toISOString().split("T")[0], category: "Interior Materials", item_name: "", description: "", unit: "পিস", quantity: 1, unit_price: "", amount: 0, supplier: "", payment_method: "নগদ", payment_status: "পরিশোধিত", received_by: "", note: "", image_url: "" };
+  const [form, setForm] = useState(emptyForm);
+  const [rows, setRows] = useState([{ ...emptyForm }]);
+  const categories = ["Interior Materials", "Interior Labour", "Furniture", "False Ceiling", "Wall Panelling", "Flooring", "Paint", "Electrical", "Plumbing", "Kitchen Cabinet", "Wardrobe", "Glass Work", "Curtain/Blind", "Lighting", "Hardware", "Transport", "অন্যান্য"];
+  useEffect(() => { load(); }, [projectId]);
+  const load = async () => { const { data } = await supabase.from("interior_expenses").select("*").eq("project_id", projectId).order("expense_date", { ascending: false }); setItems(data || []); };
+  const save = async () => {
+    if (!form.item_name || !form.unit_price) return alert("আইটেম ও মূল্য আবশ্যক");
+    const qty = +form.quantity || 1; const price = +form.unit_price || 0;
+    const payload = { ...form, project_id: projectId, quantity: qty, unit_price: price, amount: qty * price };
+    if (editItem) { await supabase.from("interior_expenses").update(payload).eq("id", editItem.id); }
+    else { await supabase.from("interior_expenses").insert([payload]); }
+    await load(); setShowModal(false); setEditItem(null);
+  };
+  const addRow = () => setRows(r => [...r, { ...emptyForm }]);
+  const removeRow = (idx) => setRows(r => r.filter((_, i) => i !== idx));
+  const updateRow = (idx, field, val) => setRows(r => r.map((row, i) => i === idx ? { ...row, [field]: val } : row));
+  const saveMultiRows = async () => {
+    const valid = rows.filter(r => r.item_name && r.unit_price);
+    if (valid.length === 0) return alert("কমপক্ষে একটি আইটেমের নাম ও মূল্য দিন!");
+    const payloads = valid.map(r => ({ ...r, project_id: projectId, quantity: +r.quantity || 1, unit_price: +r.unit_price || 0, amount: (+r.quantity || 1) * (+r.unit_price || 0) }));
+    await supabase.from("interior_expenses").insert(payloads);
+    await load(); setShowMultiModal(false);
+    setRows([{ ...emptyForm }]);
+  };
+  const del = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("interior_expenses").delete().eq("id", id); await load(); };
+  const totalExpense = items.reduce((s, i) => s + (i.amount || 0), 0);
+  const catGroups = items.reduce((acc, i) => { acc[i.category] = (acc[i.category] || 0) + (i.amount || 0); return acc; }, {});
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 16 }}>
+        <StatCard icon="💸" label="মোট খরচ" value={fmt(totalExpense)} color="#FFF5F5" />
+        <StatCard icon="✅" label="পরিশোধিত" value={fmt(items.filter(i => i.payment_status === "পরিশোধিত").reduce((s, i) => s + (i.amount || 0), 0))} color="#F0FFF4" />
+        <StatCard icon="⏳" label="বকেয়া" value={fmt(items.filter(i => i.payment_status !== "পরিশোধিত").reduce((s, i) => s + (i.amount || 0), 0))} color={C.yellowLight} />
+        <StatCard icon="📋" label="মোট এন্ট্রি" value={fmtNum(items.length)} color={C.primaryBg} />
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একটি খরচ</button>
+        <button onClick={() => { setShowMultiModal(true); }} style={{ background: "#2A5C8F", color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একসাথে অনেক খরচ</button>
+        <button onClick={() => exportToExcel(items.map(i => ({ তারিখ: i.expense_date, ক্যাটাগরি: i.category, আইটেম: i.item_name, বিবরণ: i.description, একক: i.unit, পরিমাণ: i.quantity, একক_মূল্য: i.unit_price, মোট: i.amount, সাপ্লায়ার: i.supplier, স্ট্যাটাস: i.payment_status })), "IPExpenses", "Interior_Expenses")} style={{ background: C.green, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 12 }}>📊 Excel</button>
+        <button onClick={() => { printSection("Interior Project Expenses", "ip-expenses-print"); }} style={{ background: C.blue, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 12 }}>🖨️ Print</button>
+      </div>
+      {Object.keys(catGroups).length > 0 && (
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 13, marginBottom: 8 }}>ক্যাটাগরি অনুযায়ী:</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {Object.entries(catGroups).sort((a, b) => b[1] - a[1]).map(([cat, total]) => (
+              <div key={cat} style={{ background: C.primaryBg, border: `1px solid ${C.primaryLight}`, borderRadius: 8, padding: "6px 12px" }}>
+                <div style={{ fontSize: 11, color: C.gray600 }}>{cat}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.primaryDark }}>{fmt(total)}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      <Card>
+        <div id="ip-expenses-print" style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {items.map(item => (
+                <tr key={item.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{item.expense_date}</td>
+                  <td style={{ padding: "8px 10px" }}><Badge label={item.category} color="primary" /></td>
+                  <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{item.item_name}</td>
+                  <td style={{ padding: "8px 10px", fontSize: 11, color: C.gray600 }}>{item.description || "—"}</td>
+                  <td style={{ padding: "8px 10px" }}>{item.quantity} {item.unit}</td>
+                  <td style={{ padding: "8px 10px" }}>{fmt(item.unit_price)}</td>
+                  <td style={{ padding: "8px 10px", fontWeight: 700, color: C.red }}>{fmt(item.amount)}</td>
+                  <td style={{ padding: "8px 10px", fontSize: 11 }}>{item.supplier || "—"}</td>
+                  <td style={{ padding: "8px 10px" }}><Badge label={item.payment_status} color={item.payment_status === "পরিশোধিত" ? "green" : "yellow"} /></td>
+                  <td style={{ padding: "8px 10px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
+                </tr>
+              ))}
+              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: C.red, fontSize: 15 }}>{fmt(totalExpense)}</td><td colSpan={3}></td></tr>}
+            </tbody>
+          </table>
+          {items.length === 0 && <div style={{ textAlign: "center", padding: 30, color: C.gray400 }}>কোনো খরচ নেই!</div>}
+        </div>
+      </Card>
+      {showMultiModal && (
+        <Modal title="একসাথে একাধিক খরচ" onClose={() => setShowMultiModal(false)} size={900}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ক্যাটাগরি", "আইটেম *", "বিবরণ", "একক", "পরিমাণ", "মূল্য *", "মোট", "স্ট্যাটাস", ""].map(h => <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {rows.map((row, idx) => (
+                  <tr key={idx} style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                    <td style={{ padding: "4px" }}><input type="date" value={row.expense_date} onChange={e => updateRow(idx, "expense_date", e.target.value)} style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 110 }} /></td>
+                    <td style={{ padding: "4px" }}><select value={row.category} onChange={e => updateRow(idx, "category", e.target.value)} style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 130 }}>{categories.map(c => <option key={c}>{c}</option>)}</select></td>
+                    <td style={{ padding: "4px" }}><input value={row.item_name} onChange={e => updateRow(idx, "item_name", e.target.value)} placeholder="আইটেম *" style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 120 }} /></td>
+                    <td style={{ padding: "4px" }}><input value={row.description} onChange={e => updateRow(idx, "description", e.target.value)} placeholder="বিবরণ" style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 100 }} /></td>
+                    <td style={{ padding: "4px" }}><select value={row.unit} onChange={e => updateRow(idx, "unit", e.target.value)} style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 60 }}>{["পিস", "বর্গফুট", "রানিংফুট", "কেজি", "লিটার", "সেট", "লট", "দিন"].map(u => <option key={u}>{u}</option>)}</select></td>
+                    <td style={{ padding: "4px" }}><input type="number" value={row.quantity} onChange={e => updateRow(idx, "quantity", e.target.value)} style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, width: 60 }} /></td>
+                    <td style={{ padding: "4px" }}><input type="number" value={row.unit_price} onChange={e => updateRow(idx, "unit_price", e.target.value)} placeholder="মূল্য *" style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, width: 80 }} /></td>
+                    <td style={{ padding: "4px", fontWeight: 700, color: C.primaryDark, whiteSpace: "nowrap" }}>{fmt((+row.quantity || 1) * (+row.unit_price || 0))}</td>
+                    <td style={{ padding: "4px" }}><select value={row.payment_status} onChange={e => updateRow(idx, "payment_status", e.target.value)} style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 80 }}>{["পরিশোধিত","বকেয়া","আংশিক"].map(s => <option key={s}>{s}</option>)}</select></td>
+                    <td style={{ padding: "4px" }}>{rows.length > 1 && <button onClick={() => removeRow(idx)} style={{ ...btnDanger, padding: "4px 8px" }}>×</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot><tr style={{ background: C.primaryBg }}><td colSpan={7} style={{ padding: "8px", textAlign: "right", fontWeight: 700, color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "8px", fontWeight: 800, color: C.red, fontSize: 14 }}>{fmt(rows.reduce((s, r) => s + ((+r.quantity || 1) * (+r.unit_price || 0)), 0))}</td><td colSpan={2}></td></tr></tfoot>
+            </table>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button onClick={addRow} style={{ background: C.primaryBg, color: C.primaryDark, border: `1px solid ${C.primary}`, borderRadius: 8, padding: "10px 20px", fontWeight: 600, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>+ নতুন সারি</button>
+            <button onClick={saveMultiRows} style={{ ...btnPrimary, width: "auto", padding: "10px 24px" }}>✅ সব সংরক্ষণ ({rows.filter(r => r.item_name && r.unit_price).length}টি)</button>
+          </div>
+        </Modal>
+      )}
+      {showModal && (
+        <Modal title={editItem ? "খরচ সম্পাদনা" : "নতুন খরচ"} onClose={() => { setShowModal(false); setEditItem(null); }} size={600}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="তারিখ *"><input style={inputStyle} type="date" value={form.expense_date} onChange={e => setForm({ ...form, expense_date: e.target.value })} /></FormField>
+            <FormField label="ক্যাটাগরি *"><select style={inputStyle} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>{categories.map(c => <option key={c}>{c}</option>)}</select></FormField>
+            <div style={{ gridColumn: "1/-1" }}><FormField label="আইটেমের নাম *"><input style={inputStyle} value={form.item_name} onChange={e => setForm({ ...form, item_name: e.target.value })} placeholder="যেমন: Board, Paint, Labour..." /></FormField></div>
+            <div style={{ gridColumn: "1/-1" }}><FormField label="বিবরণ"><input style={inputStyle} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="ব্র্যান্ড, স্পেসিফিকেশন..." /></FormField></div>
+            <FormField label="একক"><select style={inputStyle} value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })}>{["পিস", "বর্গফুট", "রানিংফুট", "কেজি", "লিটার", "সেট", "লট", "দিন"].map(u => <option key={u}>{u}</option>)}</select></FormField>
+            <FormField label="পরিমাণ *"><input style={inputStyle} type="number" value={form.quantity} onChange={e => { const q = e.target.value; setForm(f => ({ ...f, quantity: q, amount: (q * (+f.unit_price || 0)).toFixed(2) })); }} /></FormField>
+            <FormField label="একক মূল্য (৳) *"><input style={inputStyle} type="number" value={form.unit_price} onChange={e => { const p = e.target.value; setForm(f => ({ ...f, unit_price: p, amount: ((+f.quantity || 1) * p).toFixed(2) })); }} /></FormField>
+            <div style={{ background: C.primaryBg, borderRadius: 8, padding: "10px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
+              <div style={{ fontSize: 11, color: C.gray600 }}>মোট</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.primaryDark }}>{fmt(+form.amount || (+form.quantity || 1) * (+form.unit_price || 0))}</div>
+            </div>
+            <FormField label="সাপ্লায়ার"><input style={inputStyle} value={form.supplier} onChange={e => setForm({ ...form, supplier: e.target.value })} /></FormField>
+            <FormField label="পেমেন্ট পদ্ধতি"><select style={inputStyle} value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })}>{["নগদ", "বিকাশ", "ব্যাংক", "চেক", "বকেয়া"].map(m => <option key={m}>{m}</option>)}</select></FormField>
+            <FormField label="পেমেন্ট স্ট্যাটাস"><select style={inputStyle} value={form.payment_status} onChange={e => setForm({ ...form, payment_status: e.target.value })}>{["পরিশোধিত", "বকেয়া", "আংশিক"].map(s => <option key={s}>{s}</option>)}</select></FormField>
+            <FormField label="গ্রহণকারী"><input style={inputStyle} value={form.received_by} onChange={e => setForm({ ...form, received_by: e.target.value })} /></FormField>
+            <div style={{ gridColumn: "1/-1" }}><FormField label="নোট"><input style={inputStyle} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} /></FormField></div>
+            <div style={{ gridColumn: "1/-1" }}><ImageUploadField label="📷 রসিদ / ছবি" value={form.image_url} onChange={url => setForm(f => ({ ...f, image_url: url }))} folder="interior-expenses" /></div>
+          </div>
+          <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ---- INTERIOR STOCK ----
+function IPStock({ projectId }) {
+  const [items, setItems] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const emptyForm = { item_name: "", category: "ইন্টেরিয়র সামগ্রী", unit: "পিস", opening_stock: 0, received: 0, used: 0, unit_price: "", supplier: "", last_updated: new Date().toISOString().split("T")[0], min_stock: 0 };
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => { load(); }, [projectId]);
+  const load = async () => { const { data } = await supabase.from("interior_stock").select("*").eq("project_id", projectId).order("category"); setItems(data || []); };
+  const save = async () => {
+    if (!form.item_name) return alert("নাম আবশ্যক");
+    const received = +form.received || 0; const opening = +form.opening_stock || 0; const used = +form.used || 0;
+    const closing = opening + received - used; const price = +form.unit_price || 0;
+    const payload = { ...form, project_id: projectId, opening_stock: opening, received, used, closing_stock: closing, unit_price: price, total_value: closing * price, min_stock: +form.min_stock || 0 };
+    if (editItem) { await supabase.from("interior_stock").update(payload).eq("id", editItem.id); }
+    else { await supabase.from("interior_stock").insert([payload]); }
+    await load(); setShowModal(false); setEditItem(null);
+  };
+  const del = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("interior_stock").delete().eq("id", id); await load(); };
+  const totalValue = items.reduce((s, i) => s + (i.total_value || 0), 0);
+  const cats = ["ইন্টেরিয়র সামগ্রী", "Board/Sheet", "Paint", "Hardware", "Lighting", "Glass", "Fabric", "অন্যান্য"];
+  return (
+    <div>
+      <SectionHeader title="🪑 Stock Register" action="নতুন আইটেম" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onExport={() => exportToExcel(items.map(i => ({ আইটেম: i.item_name, ক্যাটাগরি: i.category, একক: i.unit, প্রারম্ভিক: i.opening_stock, প্রাপ্ত: i.received, ব্যবহৃত: i.used, অবশিষ্ট: i.closing_stock, মূল্য: i.unit_price, মোট: i.total_value })), "IPStock", "Interior_Stock")} onPrint={() => { printSection("Interior Stock Register", "ip-stock-print"); }} />
+      <Card>
+        <div id="ip-stock-print" style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["আইটেম", "ক্যাটাগরি", "একক", "প্রারম্ভিক", "প্রাপ্ত", "ব্যবহৃত", "অবশিষ্ট", "মূল্য", "মোট মূল্য", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {items.map(item => (
+                <tr key={item.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{item.item_name}</td>
+                  <td style={{ padding: "8px 10px" }}><Badge label={item.category} color="primary" /></td>
+                  <td style={{ padding: "8px 10px" }}>{item.unit}</td>
+                  <td style={{ padding: "8px 10px", textAlign: "center" }}>{item.opening_stock}</td>
+                  <td style={{ padding: "8px 10px", textAlign: "center", color: C.green, fontWeight: 600 }}>+{item.received}</td>
+                  <td style={{ padding: "8px 10px", textAlign: "center", color: C.red, fontWeight: 600 }}>-{item.used}</td>
+                  <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 700 }}>{item.closing_stock}</td>
+                  <td style={{ padding: "8px 10px" }}>{fmt(item.unit_price)}</td>
+                  <td style={{ padding: "8px 10px", fontWeight: 700, color: C.primary }}>{fmt(item.total_value)}</td>
+                  <td style={{ padding: "8px 10px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
+                </tr>
+              ))}
+              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={8} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>মোট:</td><td style={{ padding: "10px", color: C.primary, fontSize: 15 }}>{fmt(totalValue)}</td><td></td></tr>}
+            </tbody>
+          </table>
+          {items.length === 0 && <div style={{ textAlign: "center", padding: 30, color: C.gray400 }}>কোনো স্টক নেই!</div>}
+        </div>
+      </Card>
+      {showModal && (
+        <Modal title={editItem ? "স্টক সম্পাদনা" : "নতুন স্টক আইটেম"} onClose={() => { setShowModal(false); setEditItem(null); }} size={540}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ gridColumn: "1/-1" }}><FormField label="আইটেমের নাম *"><input style={inputStyle} value={form.item_name} onChange={e => setForm({ ...form, item_name: e.target.value })} /></FormField></div>
+            <FormField label="ক্যাটাগরি"><select style={inputStyle} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>{cats.map(c => <option key={c}>{c}</option>)}</select></FormField>
+            <FormField label="একক"><select style={inputStyle} value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })}>{["পিস", "বর্গফুট", "রানিংফুট", "কেজি", "লিটার", "সেট", "লট"].map(u => <option key={u}>{u}</option>)}</select></FormField>
+            <FormField label="প্রারম্ভিক স্টক"><input style={inputStyle} type="number" value={form.opening_stock} onChange={e => setForm({ ...form, opening_stock: e.target.value })} /></FormField>
+            <FormField label="নতুন প্রাপ্তি"><input style={inputStyle} type="number" value={form.received} onChange={e => setForm({ ...form, received: e.target.value })} /></FormField>
+            <FormField label="ব্যবহৃত"><input style={inputStyle} type="number" value={form.used} onChange={e => setForm({ ...form, used: e.target.value })} /></FormField>
+            <div style={{ background: C.primaryBg, borderRadius: 8, padding: "10px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
+              <div style={{ fontSize: 11, color: C.gray600 }}>অবশিষ্ট</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.primaryDark }}>{(+form.opening_stock || 0) + (+form.received || 0) - (+form.used || 0)} {form.unit}</div>
+            </div>
+            <FormField label="একক মূল্য (৳)"><input style={inputStyle} type="number" value={form.unit_price} onChange={e => setForm({ ...form, unit_price: e.target.value })} /></FormField>
+            <FormField label="সাপ্লায়ার"><input style={inputStyle} value={form.supplier} onChange={e => setForm({ ...form, supplier: e.target.value })} /></FormField>
+          </div>
+          <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ---- INTERIOR PAYMENTS ----
+function IPPayments({ projectId }) {
+  const [items, setItems] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const emptyForm = { receive_date: new Date().toISOString().split("T")[0], amount: "", payment_type: "১ম কিস্তি", payment_method: "নগদ", received_by: "", sender_name: "", bkash_ref: "", note: "" };
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => { load(); }, [projectId]);
+  const load = async () => { const { data } = await supabase.from("interior_received_payments").select("*").eq("project_id", projectId).order("receive_date", { ascending: false }); setItems(data || []); };
+  const save = async () => {
+    if (!form.amount) return alert("পরিমাণ আবশ্যক");
+    const payload = { ...form, project_id: projectId, amount: +form.amount };
+    if (editItem) { await supabase.from("interior_received_payments").update(payload).eq("id", editItem.id); }
+    else { await supabase.from("interior_received_payments").insert([payload]); }
+    await load(); setShowModal(false); setEditItem(null);
+  };
+  const del = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("interior_received_payments").delete().eq("id", id); await load(); };
+  const totalReceived = items.reduce((s, i) => s + (i.amount || 0), 0);
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 16 }}>
+        <StatCard icon="💰" label="মোট প্রাপ্ত" value={fmt(totalReceived)} color="#F0FFF4" />
+        <StatCard icon="📋" label="মোট কিস্তি" value={fmtNum(items.length)} color={C.primaryBg} />
+      </div>
+      <SectionHeader title="💰 Office থেকে প্রাপ্ত টাকা" action="নতুন প্রাপ্তি" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onExport={() => exportToExcel(items.map(i => ({ তারিখ: i.receive_date, পরিমাণ: i.amount, কিস্তি: i.payment_type, পদ্ধতি: i.payment_method, প্রেরক: i.sender_name, গ্রহণকারী: i.received_by, রেফারেন্স: i.bkash_ref || "", নোট: i.note })), "IPPayments", "Interior_Payments")} onPrint={() => { printSection("Interior Payment Register", "ip-payments-print"); }} />
+      <Card>
+        <div id="ip-payments-print" style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "কিস্তির ধরন", "পরিমাণ", "পেমেন্ট", "প্রেরক", "গ্রহণকারী", "রেফারেন্স", "নোট", "Action"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {items.map(item => (
+                <tr key={item.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <td style={{ padding: "9px 12px" }}>{item.receive_date}</td>
+                  <td style={{ padding: "9px 12px" }}><Badge label={item.payment_type} color="primary" /></td>
+                  <td style={{ padding: "9px 12px", fontWeight: 700, color: C.green }}>+{fmt(item.amount)}</td>
+                  <td style={{ padding: "9px 12px" }}>{item.payment_method}</td>
+                  <td style={{ padding: "9px 12px" }}>{item.sender_name || "—"}</td>
+                  <td style={{ padding: "9px 12px" }}>{item.received_by || "—"}</td>
+                  <td style={{ padding: "9px 12px", fontSize: 11, color: C.gray400 }}>{item.bkash_ref || "—"}</td>
+                  <td style={{ padding: "9px 12px", fontSize: 11 }}>{item.note || "—"}</td>
+                  <td style={{ padding: "9px 12px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item, amount: item.amount || "" }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
+                </tr>
+              ))}
+              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={2} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: C.green, fontSize: 15 }}>{fmt(totalReceived)}</td><td colSpan={6}></td></tr>}
+            </tbody>
+          </table>
+          {items.length === 0 && <div style={{ textAlign: "center", padding: 30, color: C.gray400 }}>কোনো প্রাপ্তি নেই!</div>}
+        </div>
+      </Card>
+      {showModal && (
+        <Modal title={editItem ? "প্রাপ্তি সম্পাদনা" : "নতুন টাকা প্রাপ্তি"} onClose={() => { setShowModal(false); setEditItem(null); }}>
+          <FormField label="তারিখ *"><input style={inputStyle} type="date" value={form.receive_date} onChange={e => setForm({ ...form, receive_date: e.target.value })} /></FormField>
+          <FormField label="কিস্তির ধরন"><select style={inputStyle} value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })}>{["১ম কিস্তি", "২য় কিস্তি", "৩য় কিস্তি", "৪র্থ কিস্তি", "চূড়ান্ত কিস্তি", "জরুরি অগ্রিম", "অন্যান্য"].map(t => <option key={t}>{t}</option>)}</select></FormField>
+          <FormField label="পরিমাণ (৳) *"><input style={inputStyle} type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} /></FormField>
+          <FormField label="পেমেন্ট পদ্ধতি"><select style={inputStyle} value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })}>{["নগদ", "বিকাশ", "নগদ (মোবাইল)", "ব্যাংক ট্রান্সফার", "চেক"].map(m => <option key={m}>{m}</option>)}</select></FormField>
+          <FormField label="প্রেরকের নাম"><input style={inputStyle} value={form.sender_name} onChange={e => setForm({ ...form, sender_name: e.target.value })} /></FormField>
+          <FormField label="গ্রহণকারীর নাম"><input style={inputStyle} value={form.received_by} onChange={e => setForm({ ...form, received_by: e.target.value })} /></FormField>
+          <FormField label="বিকাশ/ব্যাংক রেফারেন্স"><input style={inputStyle} value={form.bkash_ref} onChange={e => setForm({ ...form, bkash_ref: e.target.value })} /></FormField>
+          <FormField label="নোট"><input style={inputStyle} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} /></FormField>
+          <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ---- INTERIOR SUMMARY ----
+function IPSummary({ project }) {
+  const [expenses, setExpenses] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [stock, setStock] = useState([]);
+  const [updates, setUpdates] = useState([]);
+  useEffect(() => {
+    const load = async () => {
+      const [e, p, s, d] = await Promise.all([
+        supabase.from("interior_expenses").select("*").eq("project_id", project.id),
+        supabase.from("interior_received_payments").select("*").eq("project_id", project.id),
+        supabase.from("interior_stock").select("*").eq("project_id", project.id),
+        supabase.from("interior_daily_updates").select("*").eq("project_id", project.id),
+      ]);
+      setExpenses(e.data || []); setPayments(p.data || []); setStock(s.data || []); setUpdates(d.data || []);
+    };
+    load();
+  }, [project.id]);
+  const totalExpense = expenses.reduce((s, i) => s + (i.amount || 0), 0);
+  const totalReceived = payments.reduce((s, i) => s + (i.amount || 0), 0);
+  const totalStockValue = stock.reduce((s, i) => s + (i.total_value || 0), 0);
+  const balance = totalReceived - totalExpense;
+  const dealAmount = project.deal_amount || 0;
+  const projectedProfit = dealAmount - totalExpense;
+  const catGroups = expenses.reduce((acc, i) => { acc[i.category] = (acc[i.category] || 0) + (i.amount || 0); return acc; }, {});
+  const lastProgress = updates.length > 0 ? updates.sort((a, b) => new Date(b.update_date) - new Date(a.update_date))[0]?.progress_pct || 0 : 0;
+  return (
+    <div>
+      <SectionHeader title="📊 Project Summary" onPrint={() => { printSection("Interior Project Summary", "ip-summary-print"); }} />
+      <div id="ip-summary-print">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
+          <StatCard icon="💰" label="চুক্তি মূল্য" value={fmt(dealAmount)} color={C.primaryBg} />
+          <StatCard icon="📥" label="Office থেকে প্রাপ্ত" value={fmt(totalReceived)} color="#F0FFF4" />
+          <StatCard icon="💸" label="মোট খরচ" value={fmt(totalExpense)} color="#FFF5F5" />
+          <StatCard icon="🏦" label="হাতে ব্যালেন্স" value={fmt(balance)} color={balance >= 0 ? "#F0FFF4" : "#FFF5F5"} />
+          <StatCard icon="📦" label="স্টক মূল্য" value={fmt(totalStockValue)} color="#FFF8E1" />
+          <StatCard icon="📈" label="প্রজেক্টেড লাভ" value={fmt(projectedProfit)} color={projectedProfit >= 0 ? "#F0FFF4" : "#FFF5F5"} />
+        </div>
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 14, marginBottom: 10 }}>সার্বিক অগ্রগতি</div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 12 }}>সর্বশেষ আপডেট অনুযায়ী</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.primary }}>{lastProgress}%</span>
+          </div>
+          <ProgressBar value={lastProgress} />
+        </Card>
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 14, marginBottom: 10 }}>বাজেট ব্যবহার</div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 12 }}>মোট খরচ: {fmt(totalExpense)}</span>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>{dealAmount > 0 ? Math.round((totalExpense / dealAmount) * 100) : 0}%</span>
+          </div>
+          <ProgressBar value={dealAmount > 0 ? Math.min(Math.round((totalExpense / dealAmount) * 100), 100) : 0} color={totalExpense > dealAmount ? C.red : C.primary} />
+        </Card>
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 14, marginBottom: 10 }}>ক্যাটাগরি অনুযায়ী খরচ</div>
+          {Object.entries(catGroups).sort((a, b) => b[1] - a[1]).map(([cat, total]) => (
+            <div key={cat} style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 13 }}>{cat}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.primaryDark }}>{fmt(total)}</span>
+              </div>
+              <ProgressBar value={totalExpense > 0 ? Math.round((total / totalExpense) * 100) : 0} />
+            </div>
+          ))}
+          {Object.keys(catGroups).length === 0 && <div style={{ color: C.gray400, fontSize: 13 }}>কোনো খরচ নেই</div>}
+        </Card>
+        <Card>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 14, marginBottom: 10 }}>প্রজেক্টের তথ্য</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
+            {[["প্রজেক্টের নাম", project.name], ["ক্লায়েন্ট", project.client_name], ["ঠিকানা", project.site_address], ["ধরন", project.project_type], ["প্রধান ডিজাইনার", project.chief_designer], ["শুরুর তারিখ", project.start_date], ["শেষের তারিখ", project.end_date], ["স্ট্যাটাস", project.status], ["Daily Updates", updates.length + "টি"]].map(([label, val]) => (
+              <div key={label}><div style={{ fontSize: 11, color: C.gray400 }}>{label}</div><div style={{ fontWeight: 600, color: C.primaryDark }}>{val || "—"}</div></div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 // ============================================================
 // PROFILE DROPDOWN
@@ -2511,6 +3058,7 @@ export default function App() {
               {active === "dashboard" && isAdmin && <Dashboard projects={data.projects} clients={data.clients} employees={data.employees} transactions={data.transactions} materials={data.materials} />}
               {active === "projects" && isAdmin && <Projects data={data.projects} onRefresh={loadAll} />}
               {active === "construction" && <ConstructionProjects currentUser={currentUser} />}
+              {active === "interior" && <InteriorProjects currentUser={currentUser} />}
               {active === "boq" && isAdmin && <BOQSystem />}
               {active === "clients" && isAdmin && <Clients data={data.clients} onRefresh={loadAll} />}
               {active === "employees" && isAdmin && <Employees data={data.employees} onRefresh={loadAll} />}
