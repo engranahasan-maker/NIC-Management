@@ -63,6 +63,7 @@ const TXT = {
     live_work_updates: "লাইভ কাজের আপডেট", no_updates_yet: "এখনো কোনো আপডেট নেই",
     uploading: "আপলোড হচ্ছে...", link_employee: "কর্মীর সাথে লিংক করুন", select_employee: "কর্মী বাছাই করুন",
     permissions_label: "কোন কোন Menu Access পাবে (টিক দিন)", role_employee: "👤 Employee",
+    leave: "ছুটি ব্যবস্থাপনা", payroll: "পে-রোল", recruitment: "নিয়োগ",
   },
   en: {
     dashboard: "Dashboard", projects: "Projects", construction: "Construction Projects", interior: "Interior Projects",
@@ -86,6 +87,7 @@ const TXT = {
     live_work_updates: "Live Work Updates", no_updates_yet: "No updates yet",
     uploading: "Uploading...", link_employee: "Link to Employee", select_employee: "Select employee",
     permissions_label: "Menu Access (check to allow)", role_employee: "👤 Employee",
+    leave: "Leave Management", payroll: "Payroll", recruitment: "Recruitment",
   },
 };
 
@@ -828,11 +830,13 @@ function Clients({ data, onRefresh }) {
 function Employees({ data, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ name: "", role: "", dept: "ডিজাইন", phone: "", salary: "", join_date: "", status: "কর্মরত" });
+  const [viewItem, setViewItem] = useState(null);
+  const blankForm = { name: "", role: "", dept: "ডিজাইন", phone: "", salary: "", join_date: "", status: "কর্মরত", email: "", dob: "", gender: "পুরুষ", blood_group: "", nid: "", address: "", emergency_contact: "", bank_name: "", bank_account: "", photo_url: "" };
+  const [form, setForm] = useState(blankForm);
   const uploadRef = useRef();
 
-  const openAdd = () => { setEditItem(null); setForm({ name: "", role: "", dept: "ডিজাইন", phone: "", salary: "", join_date: "", status: "কর্মরত" }); setShowModal(true); };
-  const openEdit = (item) => { setEditItem(item); setForm({ ...item, salary: item.salary || "" }); setShowModal(true); };
+  const openAdd = () => { setEditItem(null); setForm(blankForm); setShowModal(true); };
+  const openEdit = (item) => { setEditItem(item); setForm({ ...blankForm, ...item, salary: item.salary || "" }); setShowModal(true); };
 
   const save = async () => {
     if (!form.name || !form.role) return alert("নাম ও পদবি আবশ্যক");
@@ -877,14 +881,19 @@ function Employees({ data, onRefresh }) {
             <tbody>
               {data.map(e => (
                 <tr key={e.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={ev => ev.currentTarget.style.background = C.primaryBg} onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}>
-                  <td style={{ padding: "10px 14px" }}><strong style={{ color: C.primaryDark }}>{e.name}</strong></td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <a onClick={() => setViewItem(e)} style={{ cursor: "pointer", color: C.primaryDark, fontWeight: 700, textDecoration: "none" }}>
+                      {e.photo_url ? <img src={e.photo_url} alt="" style={{ width: 24, height: 24, borderRadius: "50%", objectFit: "cover", verticalAlign: "middle", marginRight: 8 }} /> : null}
+                      {e.name}
+                    </a>
+                  </td>
                   <td style={{ padding: "10px 14px" }}>{e.role}</td>
                   <td style={{ padding: "10px 14px" }}><Badge label={e.dept} color="primary" /></td>
                   <td style={{ padding: "10px 14px" }}>{e.phone}</td>
                   <td style={{ padding: "10px 14px" }}><span style={{ fontWeight: 700, color: C.green }}>{fmt(e.salary)}</span></td>
                   <td style={{ padding: "10px 14px" }}>{e.join_date}</td>
                   <td style={{ padding: "10px 14px" }}><StatusBadge status={e.status} /></td>
-                  <td style={{ padding: "10px 14px" }}><div style={{ display: "flex", gap: 6 }}><button onClick={() => openEdit(e)} style={btnEdit}>✏️</button><button onClick={() => deleteItem(e.id)} style={btnDanger}>🗑️</button></div></td>
+                  <td style={{ padding: "10px 14px" }}><div style={{ display: "flex", gap: 6 }}><button onClick={() => setViewItem(e)} style={btnEdit}>👁️</button><button onClick={() => openEdit(e)} style={btnEdit}>✏️</button><button onClick={() => deleteItem(e.id)} style={btnDanger}>🗑️</button></div></td>
                 </tr>
               ))}
             </tbody>
@@ -892,19 +901,302 @@ function Employees({ data, onRefresh }) {
         </div>
       </Card>
       {showModal && (
-        <Modal title={editItem ? "কর্মী সম্পাদনা" : "নতুন কর্মী"} onClose={() => setShowModal(false)}>
+        <Modal title={editItem ? "কর্মী সম্পাদনা" : "নতুন কর্মী"} onClose={() => setShowModal(false)} size={560}>
+          <FormField label="ছবি"><ImageUploadField label="" value={form.photo_url} onChange={url => setForm({ ...form, photo_url: url })} folder="employees" /></FormField>
           <FormField label="নাম *"><input style={inputStyle} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></FormField>
           <FormField label="পদবি *"><input style={inputStyle} value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} /></FormField>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <FormField label="বিভাগ"><select style={inputStyle} value={form.dept} onChange={e => setForm({ ...form, dept: e.target.value })}>{["ডিজাইন", "নির্মাণ", "প্রশাসন", "বিপণন"].map(d => <option key={d}>{d}</option>)}</select></FormField>
             <FormField label="স্ট্যাটাস"><select style={inputStyle} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>{["কর্মরত", "ছুটিতে", "বরখাস্ত"].map(s => <option key={s}>{s}</option>)}</select></FormField>
           </div>
-          <FormField label="ফোন"><input style={inputStyle} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="ফোন"><input style={inputStyle} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></FormField>
+            <FormField label="ইমেইল"><input style={inputStyle} type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></FormField>
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <FormField label="বেতন (৳)"><input style={inputStyle} type="number" value={form.salary} onChange={e => setForm({ ...form, salary: e.target.value })} /></FormField>
             <FormField label="যোগদান"><input style={inputStyle} type="date" value={form.join_date} onChange={e => setForm({ ...form, join_date: e.target.value })} /></FormField>
           </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.primaryDark, margin: "16px 0 8px", borderTop: "1px solid " + C.gray100, paddingTop: 14 }}>👤 ব্যক্তিগত তথ্য</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="জন্ম তারিখ"><input style={inputStyle} type="date" value={form.dob} onChange={e => setForm({ ...form, dob: e.target.value })} /></FormField>
+            <FormField label="লিঙ্গ"><select style={inputStyle} value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}>{["পুরুষ", "মহিলা", "অন্যান্য"].map(g => <option key={g}>{g}</option>)}</select></FormField>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="রক্তের গ্রুপ"><input style={inputStyle} value={form.blood_group} onChange={e => setForm({ ...form, blood_group: e.target.value })} placeholder="B+" /></FormField>
+            <FormField label="NID নম্বর"><input style={inputStyle} value={form.nid} onChange={e => setForm({ ...form, nid: e.target.value })} /></FormField>
+          </div>
+          <FormField label="ঠিকানা"><input style={inputStyle} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} /></FormField>
+          <FormField label="জরুরী যোগাযোগ নম্বর"><input style={inputStyle} value={form.emergency_contact} onChange={e => setForm({ ...form, emergency_contact: e.target.value })} /></FormField>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.primaryDark, margin: "16px 0 8px", borderTop: "1px solid " + C.gray100, paddingTop: 14 }}>🏦 ব্যাংক তথ্য</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="ব্যাংকের নাম"><input style={inputStyle} value={form.bank_name} onChange={e => setForm({ ...form, bank_name: e.target.value })} /></FormField>
+            <FormField label="অ্যাকাউন্ট নম্বর"><input style={inputStyle} value={form.bank_account} onChange={e => setForm({ ...form, bank_account: e.target.value })} /></FormField>
+          </div>
           <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+
+      {viewItem && <EmployeeProfileModal employee={viewItem} onClose={() => setViewItem(null)} onEdit={() => { setViewItem(null); openEdit(viewItem); }} />}
+    </div>
+  );
+}
+
+function ProfileField({ label, value }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: C.gray400, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 13, color: C.gray800, fontWeight: 600 }}>{value || "—"}</div>
+    </div>
+  );
+}
+
+function EmployeeProfileModal({ employee, onClose, onEdit }) {
+  const [tab, setTab] = useState("overview");
+  const [attSummary, setAttSummary] = useState(null);
+  const [payHistory, setPayHistory] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      const monthStart = new Date().toISOString().slice(0, 7) + "-01";
+      const { data: att } = await supabase.from("attendance").select("status").eq("employee_id", employee.id).gte("date", monthStart);
+      const s = { "উপস্থিত": 0, "অনুপস্থিত": 0, "অর্ধদিন": 0, "ছুটি": 0 };
+      (att || []).forEach(a => { if (s[a.status] != null) s[a.status]++; });
+      setAttSummary(s);
+      const { data: pay } = await supabase.from("payroll_runs").select("*").eq("employee_id", employee.id).order("month", { ascending: false }).limit(6);
+      setPayHistory(pay || []);
+    })();
+  }, [employee.id]);
+
+  const tabs = [["overview", "👤 Overview"], ["employment", "💼 চাকরির তথ্য"], ["bank", "🏦 ব্যাংক ও ডকুমেন্ট"], ["salary", "💰 বেতন ইতিহাস"]];
+
+  return (
+    <Modal title="কর্মীর প্রোফাইল" onClose={onClose} size={620}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 18, paddingBottom: 18, borderBottom: "1px solid " + C.gray100 }}>
+        {employee.photo_url ? <img src={employee.photo_url} alt="" style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover" }} /> :
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: C.primaryBg, color: C.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 24 }}>{(employee.name || "?")[0]}</div>}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: C.primaryDark }}>{employee.name}</div>
+          <div style={{ fontSize: 13, color: C.gray600 }}>{employee.role} · {employee.dept}</div>
+          <StatusBadge status={employee.status} />
+        </div>
+        <button onClick={onEdit} style={btnEdit}>✏️ Edit</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 18, borderBottom: "1px solid " + C.gray100, flexWrap: "wrap" }}>
+        {tabs.map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ background: "none", border: "none", borderBottom: tab === id ? "2px solid " + C.primary : "2px solid transparent", padding: "8px 12px", fontSize: 12, fontWeight: 600, color: tab === id ? C.primaryDark : C.gray600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "overview" && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+            <ProfileField label="ফোন" value={employee.phone} />
+            <ProfileField label="ইমেইল" value={employee.email} />
+            <ProfileField label="জন্ম তারিখ" value={employee.dob} />
+            <ProfileField label="লিঙ্গ" value={employee.gender} />
+            <ProfileField label="রক্তের গ্রুপ" value={employee.blood_group} />
+            <ProfileField label="জরুরী যোগাযোগ" value={employee.emergency_contact} />
+          </div>
+          <ProfileField label="ঠিকানা" value={employee.address} />
+          {attSummary && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.primaryDark, marginBottom: 8 }}>এই মাসের উপস্থিতি সারাংশ</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+                <StatCard icon="✅" label="উপস্থিত" value={fmtNum(attSummary["উপস্থিত"])} color={C.greenLight} />
+                <StatCard icon="❌" label="অনুপস্থিত" value={fmtNum(attSummary["অনুপস্থিত"])} color={C.redLight} />
+                <StatCard icon="⏰" label="অর্ধদিন" value={fmtNum(attSummary["অর্ধদিন"])} color={C.yellowLight} />
+                <StatCard icon="🌴" label="ছুটি" value={fmtNum(attSummary["ছুটি"])} color={C.blueLight} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "employment" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+          <ProfileField label="পদবি" value={employee.role} />
+          <ProfileField label="বিভাগ" value={employee.dept} />
+          <ProfileField label="যোগদানের তারিখ" value={employee.join_date} />
+          <ProfileField label="স্ট্যাটাস" value={employee.status} />
+          <ProfileField label="মাসিক বেতন" value={fmt(employee.salary)} />
+          <ProfileField label="NID নম্বর" value={employee.nid} />
+        </div>
+      )}
+
+      {tab === "bank" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+          <ProfileField label="ব্যাংকের নাম" value={employee.bank_name} />
+          <ProfileField label="অ্যাকাউন্ট নম্বর" value={employee.bank_account} />
+          <ProfileField label="NID নম্বর" value={employee.nid} />
+        </div>
+      )}
+
+      {tab === "salary" && (
+        <div>
+          {payHistory.length === 0 ? (
+            <div style={{ color: C.gray400, textAlign: "center", padding: 20, fontSize: 13 }}>এখনো কোনো পে-রোল রেকর্ড নেই</div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: C.primaryBg }}>{["মাস", "মূল বেতন", "ভাতা", "কর্তন", "নীট প্রদেয়", "স্ট্যাটাস"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {payHistory.map(p => (
+                  <tr key={p.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                    <td style={{ padding: "8px 10px" }}>{p.month}</td>
+                    <td style={{ padding: "8px 10px" }}>{fmt(p.basic)}</td>
+                    <td style={{ padding: "8px 10px" }}>{fmt(p.allowances)}</td>
+                    <td style={{ padding: "8px 10px" }}>{fmt(p.deductions)}</td>
+                    <td style={{ padding: "8px 10px", fontWeight: 700, color: C.green }}>{fmt(p.net_pay)}</td>
+                    <td style={{ padding: "8px 10px" }}><StatusBadge status={p.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ============================================================
+// LEAVE MANAGEMENT
+// ============================================================
+function LeaveManagement({ employees }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [tab, setTab] = useState("pending");
+  const [form, setForm] = useState({ employee_id: "", leave_type: "casual", start_date: "", end_date: "", reason: "", status: "Approved" });
+
+  const load = async () => {
+    const { data } = await supabase.from("leave_requests").select("*").order("applied_at", { ascending: false });
+    setRequests(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const empById = {}; employees.forEach(e => { empById[e.id] = e; });
+  const calcDays = (s, e) => { if (!s || !e) return 0; const d = (new Date(e) - new Date(s)) / 86400000 + 1; return d > 0 ? d : 0; };
+
+  const decide = async (id, status) => {
+    await supabase.from("leave_requests").update({ status, decided_at: new Date().toISOString() }).eq("id", id);
+    load();
+  };
+
+  const submitAdminLeave = async () => {
+    if (!form.employee_id || !form.start_date || !form.end_date) return alert("কর্মী ও তারিখ আবশ্যক");
+    const days = calcDays(form.start_date, form.end_date);
+    await supabase.from("leave_requests").insert([{ ...form, days, applied_at: new Date().toISOString(), decided_at: new Date().toISOString() }]);
+    setShowModal(false); setForm({ employee_id: "", leave_type: "casual", start_date: "", end_date: "", reason: "", status: "Approved" }); load();
+  };
+
+  const thisYear = new Date().getFullYear();
+  const usedByEmpType = {};
+  requests.filter(r => r.status === "Approved" && new Date(r.start_date).getFullYear() === thisYear).forEach(r => {
+    const key = r.employee_id + "_" + r.leave_type;
+    usedByEmpType[key] = (usedByEmpType[key] || 0) + (r.days || 0);
+  });
+
+  const pending = requests.filter(r => r.status === "Pending");
+  const approved = requests.filter(r => r.status === "Approved");
+  const rejected = requests.filter(r => r.status === "Rejected");
+  const onLeaveToday = requests.filter(r => r.status === "Approved" && r.start_date <= new Date().toISOString().split("T")[0] && r.end_date >= new Date().toISOString().split("T")[0]).length;
+  const list = tab === "pending" ? pending : tab === "approved" ? approved : tab === "rejected" ? rejected : requests;
+
+  const statusColor = { Pending: "yellow", Approved: "green", Rejected: "red" };
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
+        <StatCard icon="⏳" label="অপেক্ষমাণ আবেদন" value={fmtNum(pending.length)} color={C.yellowLight} />
+        <StatCard icon="✅" label="এই বছর অনুমোদিত" value={fmtNum(approved.length)} color={C.greenLight} />
+        <StatCard icon="🌴" label="আজ ছুটিতে আছে" value={fmtNum(onLeaveToday)} color={C.blueLight} />
+      </div>
+
+      <SectionHeader title="🌴 ছুটি ব্যবস্থাপনা" action="নতুন ছুটি এন্ট্রি" onAction={() => setShowModal(true)} />
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {[["pending", "⏳ অপেক্ষমাণ (" + pending.length + ")"], ["approved", "✅ অনুমোদিত"], ["rejected", "❌ বাতিল"], ["all", "সব"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ background: tab === id ? C.primary : C.white, color: tab === id ? C.white : C.gray800, border: "1px solid " + (tab === id ? C.primary : C.gray200), borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : list.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো রেকর্ড নেই</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "ধরন", "তারিখ", "দিন", "কারণ", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {list.map(r => (
+                <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{empById[r.employee_id]?.name || "—"}</td>
+                  <td style={{ padding: "10px 14px" }}>{LEAVE_TYPES.find(t => t.id === r.leave_type)?.label || r.leave_type}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12 }}>{r.start_date} → {r.end_date}</td>
+                  <td style={{ padding: "10px 14px" }}>{fmtNum(r.days)}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.reason}</td>
+                  <td style={{ padding: "10px 14px" }}><Badge label={r.status} color={statusColor[r.status]} /></td>
+                  <td style={{ padding: "10px 14px" }}>
+                    {r.status === "Pending" && (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={() => decide(r.id, "Approved")} style={{ ...btnEdit, background: C.greenLight, color: C.green }}>✓</button>
+                        <button onClick={() => decide(r.id, "Rejected")} style={btnDanger}>✕</button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>📊 ছুটির ব্যালেন্স ({thisYear})</div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead><tr style={{ background: C.primaryBg }}>
+              <th style={{ padding: "8px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>কর্মী</th>
+              {LEAVE_TYPES.map(t => <th key={t.id} style={{ padding: "8px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{t.label} ({t.quota})</th>)}
+            </tr></thead>
+            <tbody>
+              {employees.map(e => (
+                <tr key={e.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{e.name}</td>
+                  {LEAVE_TYPES.map(t => {
+                    const used = usedByEmpType[e.id + "_" + t.id] || 0;
+                    const remaining = t.quota - used;
+                    return <td key={t.id} style={{ padding: "8px 10px", color: remaining <= 0 ? C.red : C.gray800 }}>{fmtNum(remaining)} / {fmtNum(t.quota)}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {showModal && (
+        <Modal title="নতুন ছুটি এন্ট্রি (Admin)" onClose={() => setShowModal(false)}>
+          <FormField label="কর্মী *">
+            <select style={inputStyle} value={form.employee_id} onChange={e => setForm({ ...form, employee_id: e.target.value })}>
+              <option value="">— বাছাই করুন —</option>
+              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          </FormField>
+          <FormField label="ছুটির ধরন">
+            <select style={inputStyle} value={form.leave_type} onChange={e => setForm({ ...form, leave_type: e.target.value })}>
+              {LEAVE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="শুরুর তারিখ *"><input type="date" style={inputStyle} value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} /></FormField>
+            <FormField label="শেষের তারিখ *"><input type="date" style={inputStyle} value={form.end_date} onChange={e => setForm({ ...form, end_date: e.target.value })} /></FormField>
+          </div>
+          <FormField label="কারণ"><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} /></FormField>
+          <FormField label="স্ট্যাটাস"><select style={inputStyle} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}><option value="Approved">✅ Approved</option><option value="Pending">⏳ Pending</option></select></FormField>
+          <button onClick={submitAdminLeave} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
         </Modal>
       )}
     </div>
@@ -1259,12 +1551,22 @@ function MyAttendance({ currentUser, lang }) {
   const [showCamera, setShowCamera] = useState(false); // false | 'checkin' | 'update'
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const [nowTick, setNowTick] = useState(Date.now());
+  const [myLeaves, setMyLeaves] = useState([]);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [leaveForm, setLeaveForm] = useState({ leave_type: "casual", start_date: "", end_date: "", reason: "" });
 
-  useEffect(() => {
-    const t = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  const loadLeaves = async () => {
+    if (!currentUser?.employee_id) return;
+    const { data } = await supabase.from("leave_requests").select("*").eq("employee_id", currentUser.employee_id).order("applied_at", { ascending: false });
+    setMyLeaves(data || []);
+  };
+
+  const submitLeave = async () => {
+    if (!leaveForm.start_date || !leaveForm.end_date) return alert("তারিখ দিন");
+    const days = Math.max((new Date(leaveForm.end_date) - new Date(leaveForm.start_date)) / 86400000 + 1, 1);
+    await supabase.from("leave_requests").insert([{ employee_id: currentUser.employee_id, ...leaveForm, days, status: "Pending", applied_at: new Date().toISOString() }]);
+    setShowLeaveModal(false); setLeaveForm({ leave_type: "casual", start_date: "", end_date: "", reason: "" }); loadLeaves();
+  };
 
   const load = async () => {
     if (!currentUser?.employee_id) return;
@@ -1278,9 +1580,11 @@ function MyAttendance({ currentUser, lang }) {
 
   useEffect(() => {
     load();
+    loadLeaves();
     if (!currentUser?.employee_id) return;
     const channel = supabase.channel("my-att-" + currentUser.employee_id)
       .on("postgres_changes", { event: "*", schema: "public", table: "work_updates", filter: `employee_id=eq.${currentUser.employee_id}` }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "leave_requests", filter: `employee_id=eq.${currentUser.employee_id}` }, loadLeaves)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1297,7 +1601,7 @@ function MyAttendance({ currentUser, lang }) {
   const doWorkUpdate = async (photoDataUrl) => {
     setBusy(true); setShowCamera(false);
     const loc = await getLocation();
-    const photoUrl = await uploadCapturedPhoto(photoDataUrl, "work-updates");
+    const photoUrl = photoDataUrl ? await uploadCapturedPhoto(photoDataUrl, "work-updates") : null;
     await supabase.from("work_updates").insert([{ employee_id: currentUser.employee_id, date: today, note, photo_url: photoUrl, lat: loc?.lat || null, lng: loc?.lng || null }]);
     setNote(""); await load(); setBusy(false);
   };
@@ -1306,14 +1610,7 @@ function MyAttendance({ currentUser, lang }) {
     return <Card><div style={{ textAlign: "center", padding: 30, color: C.gray600, fontSize: 13 }}>⚠️ আপনার অ্যাকাউন্ট কোনো Employee রেকর্ডের সাথে লিংক করা নেই। Admin-কে User Management থেকে লিংক করতে বলুন।</div></Card>;
   }
 
-  const lastActivity = updates[0]?.created_at || todayAtt?.check_in_time || todayAtt?.created_at;
-  let nextInSec = null;
-  if (lastActivity) {
-    const diff = 15 * 60 - Math.floor((nowTick - new Date(lastActivity).getTime()) / 1000);
-    nextInSec = Math.max(diff, 0);
-  }
-  const mm = nextInSec != null ? String(Math.floor(nextInSec / 60)).padStart(2, "0") : "--";
-  const ss = nextInSec != null ? String(nextInSec % 60).padStart(2, "0") : "--";
+  const isFirstUpdate = updates.length === 0;
 
   return (
     <div>
@@ -1340,12 +1637,18 @@ function MyAttendance({ currentUser, lang }) {
           </Card>
 
           <Card>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+            <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 15 }}>{T.work_update}</div>
-              <div style={{ fontSize: 12, color: C.gray600 }}>{T.next_update_in}: <strong style={{ color: C.primaryDark }}>{mm}:{ss}</strong></div>
             </div>
             <textarea value={note} onChange={e => setNote(e.target.value)} placeholder={T.update_note_placeholder} style={{ ...inputStyle, minHeight: 60, resize: "vertical", marginBottom: 10 }} />
-            <button disabled={busy} onClick={() => setShowCamera("update")} style={{ ...btnPrimary, marginTop: 0 }}>{busy ? T.uploading : T.give_update}</button>
+            {isFirstUpdate ? (
+              <button disabled={busy} onClick={() => setShowCamera("update")} style={{ ...btnPrimary, marginTop: 0 }}>{busy ? T.uploading : "📸 " + T.give_update}</button>
+            ) : (
+              <div style={{ display: "flex", gap: 10 }}>
+                <button disabled={busy} onClick={() => doWorkUpdate(null)} style={{ ...btnPrimary, marginTop: 0, flex: 1 }}>{busy ? T.uploading : T.give_update}</button>
+                <button disabled={busy} onClick={() => setShowCamera("update")} style={{ ...btnEdit, flex: 1, textAlign: "center" }}>{T.take_photo}</button>
+              </div>
+            )}
 
             {updates.length > 0 && (
               <div style={{ marginTop: 18, borderTop: "1px solid " + C.gray100, paddingTop: 14 }}>
@@ -1371,6 +1674,179 @@ function MyAttendance({ currentUser, lang }) {
       {showCamera && (
         <CameraCapture lang={lang} onCancel={() => setShowCamera(false)} onCapture={(img) => showCamera === "checkin" ? doCheckIn(img) : doWorkUpdate(img)} />
       )}
+
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 15 }}>🌴 ছুটির আবেদন</div>
+          <button onClick={() => setShowLeaveModal(true)} style={{ ...btnEdit, background: C.primary, color: C.white }}>➕ নতুন আবেদন</button>
+        </div>
+        {myLeaves.length === 0 ? (
+          <div style={{ color: C.gray400, textAlign: "center", padding: 16, fontSize: 13 }}>এখনো কোনো আবেদন করেননি</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {myLeaves.map(r => (
+              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.gray50, borderRadius: 8, padding: "8px 12px", flexWrap: "wrap", gap: 6 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.primaryDark }}>{LEAVE_TYPES.find(t => t.id === r.leave_type)?.label || r.leave_type}</div>
+                  <div style={{ fontSize: 11, color: C.gray600 }}>{r.start_date} → {r.end_date} ({fmtNum(r.days)} দিন)</div>
+                </div>
+                <Badge label={r.status === "Pending" ? "⏳ Pending" : r.status === "Approved" ? "✅ Approved" : "❌ Rejected"} color={r.status === "Pending" ? "yellow" : r.status === "Approved" ? "green" : "red"} />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {showLeaveModal && (
+        <Modal title="ছুটির আবেদন করুন" onClose={() => setShowLeaveModal(false)}>
+          <FormField label="ছুটির ধরন">
+            <select style={inputStyle} value={leaveForm.leave_type} onChange={e => setLeaveForm({ ...leaveForm, leave_type: e.target.value })}>
+              {LEAVE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="শুরুর তারিখ *"><input type="date" style={inputStyle} value={leaveForm.start_date} onChange={e => setLeaveForm({ ...leaveForm, start_date: e.target.value })} /></FormField>
+            <FormField label="শেষের তারিখ *"><input type="date" style={inputStyle} value={leaveForm.end_date} onChange={e => setLeaveForm({ ...leaveForm, end_date: e.target.value })} /></FormField>
+          </div>
+          <FormField label="কারণ"><textarea style={{ ...inputStyle, minHeight: 60 }} value={leaveForm.reason} onChange={e => setLeaveForm({ ...leaveForm, reason: e.target.value })} /></FormField>
+          <button onClick={submitLeave} style={btnPrimary}>✅ আবেদন জমা দিন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// PAYROLL / PAYSLIP
+// ============================================================
+function Payroll({ employees }) {
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [runs, setRuns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editItem, setEditItem] = useState(null);
+  const [form, setForm] = useState({ allowances: 0, deductions: 0 });
+  const [printRow, setPrintRow] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("payroll_runs").select("*").eq("month", month);
+    setRuns(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [month]);
+
+  const empById = {}; employees.forEach(e => { empById[e.id] = e; });
+
+  const generateRun = async () => {
+    const existingIds = new Set(runs.map(r => r.employee_id));
+    const toCreate = employees.filter(e => e.status === "কর্মরত" && !existingIds.has(e.id)).map(e => ({
+      employee_id: e.id, month, basic: e.salary || 0, allowances: 0, deductions: 0, net_pay: e.salary || 0, status: "Unpaid",
+    }));
+    if (toCreate.length === 0) return alert("এই মাসের জন্য সব কর্মীর পে-রোল ইতিমধ্যে তৈরি আছে");
+    await supabase.from("payroll_runs").insert(toCreate);
+    load();
+  };
+
+  const openEdit = (r) => { setEditItem(r); setForm({ allowances: r.allowances || 0, deductions: r.deductions || 0 }); };
+  const saveEdit = async () => {
+    const net = (editItem.basic || 0) + (+form.allowances || 0) - (+form.deductions || 0);
+    await supabase.from("payroll_runs").update({ allowances: +form.allowances || 0, deductions: +form.deductions || 0, net_pay: net }).eq("id", editItem.id);
+    setEditItem(null); load();
+  };
+
+  const markPaid = async (r) => {
+    await supabase.from("payroll_runs").update({ status: "Paid", paid_at: new Date().toISOString() }).eq("id", r.id);
+    load();
+  };
+
+  const doPrint = (r) => {
+    setPrintRow(r);
+    setTimeout(() => printSection("পে-স্লিপ — " + (empById[r.employee_id]?.name || ""), "payslip-content"), 100);
+  };
+
+  const totalNet = runs.reduce((s, r) => s + (r.net_pay || 0), 0);
+  const paidCount = runs.filter(r => r.status === "Paid").length;
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
+        <StatCard icon="👷" label="মোট কর্মী (এই মাসে)" value={fmtNum(runs.length)} color={C.primaryBg} />
+        <StatCard icon="✅" label="পরিশোধিত" value={fmtNum(paidCount) + " / " + fmtNum(runs.length)} color={C.greenLight} />
+        <StatCard icon="💰" label="মোট নীট বেতন" value={fmt(totalNet)} color="#FFF8E1" />
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ fontWeight: 600, color: C.gray800, fontSize: 14 }}>মাস:</div>
+          <input type="month" value={month} onChange={e => setMonth(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
+        </div>
+        <button onClick={generateRun} style={{ ...btnPrimary, width: "auto", margin: 0 }}>⚙️ এই মাসের পে-রোল তৈরি করুন</button>
+      </div>
+
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : runs.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>এই মাসের জন্য এখনো পে-রোল তৈরি হয়নি। উপরের বাটনে ক্লিক করুন।</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "মূল বেতন", "ভাতা", "কর্তন", "নীট প্রদেয়", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {runs.map(r => (
+                <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{empById[r.employee_id]?.name || "—"}</td>
+                  <td style={{ padding: "10px 14px" }}>{fmt(r.basic)}</td>
+                  <td style={{ padding: "10px 14px", color: C.green }}>+{fmt(r.allowances)}</td>
+                  <td style={{ padding: "10px 14px", color: C.red }}>-{fmt(r.deductions)}</td>
+                  <td style={{ padding: "10px 14px", fontWeight: 700, color: C.primaryDark }}>{fmt(r.net_pay)}</td>
+                  <td style={{ padding: "10px 14px" }}><Badge label={r.status === "Paid" ? "✅ Paid" : "⏳ Unpaid"} color={r.status === "Paid" ? "green" : "yellow"} /></td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => openEdit(r)} style={btnEdit}>✏️</button>
+                      <button onClick={() => doPrint(r)} style={btnEdit}>🖨️</button>
+                      {r.status !== "Paid" && <button onClick={() => markPaid(r)} style={{ ...btnEdit, background: C.greenLight, color: C.green }}>✓ Paid</button>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {editItem && (
+        <Modal title="পে-রোল সম্পাদনা — " onClose={() => setEditItem(null)}>
+          <FormField label="মূল বেতন"><input style={inputStyle} value={fmt(editItem.basic)} disabled /></FormField>
+          <FormField label="ভাতা (Allowances)"><input type="number" style={inputStyle} value={form.allowances} onChange={e => setForm({ ...form, allowances: e.target.value })} /></FormField>
+          <FormField label="কর্তন (Deductions)"><input type="number" style={inputStyle} value={form.deductions} onChange={e => setForm({ ...form, deductions: e.target.value })} /></FormField>
+          <div style={{ fontSize: 13, color: C.gray600, marginBottom: 14 }}>নীট প্রদেয়: <strong style={{ color: C.primaryDark }}>{fmt((editItem.basic || 0) + (+form.allowances || 0) - (+form.deductions || 0))}</strong></div>
+          <button onClick={saveEdit} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+
+      {/* Hidden payslip content for printing */}
+      <div style={{ display: "none" }}>
+        <div id="payslip-content">
+          {printRow && (
+            <div>
+              <table style={{ marginBottom: 14 }}>
+                <tbody>
+                  <tr><td style={{ fontWeight: 700 }}>কর্মীর নাম</td><td>{empById[printRow.employee_id]?.name}</td><td style={{ fontWeight: 700 }}>পদবি</td><td>{empById[printRow.employee_id]?.role}</td></tr>
+                  <tr><td style={{ fontWeight: 700 }}>বিভাগ</td><td>{empById[printRow.employee_id]?.dept}</td><td style={{ fontWeight: 700 }}>মাস</td><td>{printRow.month}</td></tr>
+                </tbody>
+              </table>
+              <table>
+                <thead><tr><th>বিবরণ</th><th>পরিমাণ (৳)</th></tr></thead>
+                <tbody>
+                  <tr><td>মূল বেতন (Basic)</td><td>{fmt(printRow.basic)}</td></tr>
+                  <tr><td>ভাতা (Allowances)</td><td>{fmt(printRow.allowances)}</td></tr>
+                  <tr><td>কর্তন (Deductions)</td><td>-{fmt(printRow.deductions)}</td></tr>
+                  <tr><td style={{ fontWeight: 700 }}>নীট প্রদেয়</td><td style={{ fontWeight: 700 }}>{fmt(printRow.net_pay)}</td></tr>
+                  <tr><td>স্ট্যাটাস</td><td>{printRow.status === "Paid" ? "পরিশোধিত" : "অপরিশোধিত"}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1453,6 +1929,154 @@ function Finance({ data, onRefresh }) {
           <FormField label="বিবরণ *"><input style={inputStyle} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></FormField>
           <FormField label="পরিমাণ (৳) *"><input style={inputStyle} type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} /></FormField>
           <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// RECRUITMENT
+// ============================================================
+const CANDIDATE_STAGES = [
+  { id: "Applied", label: "আবেদনকৃত", color: C.blue },
+  { id: "Interview", label: "ইন্টারভিউ", color: "#E0A800" },
+  { id: "Hired", label: "নিয়োগপ্রাপ্ত", color: C.green },
+  { id: "Rejected", label: "বাতিল", color: C.red },
+];
+
+function Recruitment() {
+  const [jobs, setJobs] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [candidates, setCandidates] = useState([]);
+  const [showJobModal, setShowJobModal] = useState(false);
+  const [showCandModal, setShowCandModal] = useState(false);
+  const [jobForm, setJobForm] = useState({ title: "", department: "ডিজাইন", type: "Full Time", description: "", status: "Open" });
+  const [candForm, setCandForm] = useState({ name: "", phone: "", email: "", resume_url: "", notes: "" });
+  const candUploadRef = useRef();
+
+  const loadJobs = async () => { const { data } = await supabase.from("job_postings").select("*").order("posted_at", { ascending: false }); setJobs(data || []); if (!selectedJob && data?.length) setSelectedJob(data[0]); };
+  const loadCandidates = async (jobId) => { if (!jobId) return setCandidates([]); const { data } = await supabase.from("candidates").select("*").eq("job_id", jobId).order("applied_at", { ascending: false }); setCandidates(data || []); };
+
+  useEffect(() => { loadJobs(); }, []);
+  useEffect(() => { loadCandidates(selectedJob?.id); }, [selectedJob?.id]);
+
+  const saveJob = async () => {
+    if (!jobForm.title) return alert("পদের নাম আবশ্যক");
+    const { data, error } = await supabase.from("job_postings").insert([{ ...jobForm, posted_at: new Date().toISOString() }]).select().single();
+    if (error) return alert("Error: " + error.message);
+    setShowJobModal(false); setJobForm({ title: "", department: "ডিজাইন", type: "Full Time", description: "", status: "Open" });
+    await loadJobs(); setSelectedJob(data);
+  };
+
+  const toggleJobStatus = async (job) => {
+    await supabase.from("job_postings").update({ status: job.status === "Open" ? "Closed" : "Open" }).eq("id", job.id);
+    loadJobs();
+  };
+
+  const saveCandidate = async () => {
+    if (!candForm.name) return alert("নাম আবশ্যক");
+    await supabase.from("candidates").insert([{ ...candForm, job_id: selectedJob.id, stage: "Applied", applied_at: new Date().toISOString() }]);
+    setShowCandModal(false); setCandForm({ name: "", phone: "", email: "", resume_url: "", notes: "" });
+    loadCandidates(selectedJob.id);
+  };
+
+  const moveStage = async (cand, stage) => {
+    await supabase.from("candidates").update({ stage }).eq("id", cand.id);
+    loadCandidates(selectedJob.id);
+  };
+
+  const uploadResume = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const url = await uploadImage(file, "resumes");
+    if (url) setCandForm({ ...candForm, resume_url: url });
+  };
+
+  return (
+    <div>
+      <SectionHeader title="🧑‍💼 নিয়োগ (Recruitment)" action="নতুন পদ" onAction={() => setShowJobModal(true)} />
+      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16 }}>
+        <Card style={{ padding: 12, height: "fit-content" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.primaryDark, marginBottom: 10, padding: "0 6px" }}>পদসমূহ</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {jobs.map(j => (
+              <div key={j.id} onClick={() => setSelectedJob(j)} style={{ padding: "10px 12px", borderRadius: 8, cursor: "pointer", background: selectedJob?.id === j.id ? C.primaryBg : "transparent", border: "1px solid " + (selectedJob?.id === j.id ? C.primaryLight : "transparent") }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.primaryDark }}>{j.title}</div>
+                <div style={{ fontSize: 11, color: C.gray600 }}>{j.department} · {j.type}</div>
+                <Badge label={j.status === "Open" ? "🟢 Open" : "🔴 Closed"} color={j.status === "Open" ? "green" : "red"} />
+              </div>
+            ))}
+            {jobs.length === 0 && <div style={{ fontSize: 12, color: C.gray400, padding: 10 }}>কোনো পদ যোগ করা হয়নি</div>}
+          </div>
+        </Card>
+
+        <div>
+          {!selectedJob ? (
+            <Card><div style={{ textAlign: "center", padding: 30, color: C.gray400, fontSize: 13 }}>একটা পদ বাছাই করুন</div></Card>
+          ) : (
+            <>
+              <Card style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: C.primaryDark }}>{selectedJob.title}</div>
+                  <div style={{ fontSize: 12, color: C.gray600 }}>{selectedJob.department} · {selectedJob.type} · {fmtNum(candidates.length)} জন আবেদন করেছে</div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => toggleJobStatus(selectedJob)} style={btnEdit}>{selectedJob.status === "Open" ? "🔴 বন্ধ করুন" : "🟢 চালু করুন"}</button>
+                  <button onClick={() => setShowCandModal(true)} style={{ ...btnPrimary, width: "auto", margin: 0 }}>➕ প্রার্থী যোগ করুন</button>
+                </div>
+              </Card>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+                {CANDIDATE_STAGES.map(stage => (
+                  <div key={stage.id}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: stage.color, marginBottom: 8, padding: "6px 10px", background: stage.color + "22", borderRadius: 8, textAlign: "center" }}>
+                      {stage.label} ({candidates.filter(c => c.stage === stage.id).length})
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 60 }}>
+                      {candidates.filter(c => c.stage === stage.id).map(c => (
+                        <Card key={c.id} style={{ padding: 10 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: C.primaryDark }}>{c.name}</div>
+                          <div style={{ fontSize: 11, color: C.gray600, marginBottom: 6 }}>{c.phone}</div>
+                          {c.resume_url && <a href={c.resume_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: C.blue, display: "block", marginBottom: 6 }}>📄 Resume</a>}
+                          <select value={c.stage} onChange={e => moveStage(c, e.target.value)} style={{ ...inputStyle, padding: "4px 8px", fontSize: 11 }}>
+                            {CANDIDATE_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                          </select>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {showJobModal && (
+        <Modal title="নতুন পদ পোস্ট করুন" onClose={() => setShowJobModal(false)}>
+          <FormField label="পদের নাম *"><input style={inputStyle} value={jobForm.title} onChange={e => setJobForm({ ...jobForm, title: e.target.value })} /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="বিভাগ"><select style={inputStyle} value={jobForm.department} onChange={e => setJobForm({ ...jobForm, department: e.target.value })}>{["ডিজাইন", "নির্মাণ", "প্রশাসন", "বিপণন"].map(d => <option key={d}>{d}</option>)}</select></FormField>
+            <FormField label="ধরন"><select style={inputStyle} value={jobForm.type} onChange={e => setJobForm({ ...jobForm, type: e.target.value })}>{["Full Time", "Part Time", "Contract", "Internship"].map(t => <option key={t}>{t}</option>)}</select></FormField>
+          </div>
+          <FormField label="বিবরণ"><textarea style={{ ...inputStyle, minHeight: 80 }} value={jobForm.description} onChange={e => setJobForm({ ...jobForm, description: e.target.value })} /></FormField>
+          <button onClick={saveJob} style={btnPrimary}>✅ পোস্ট করুন</button>
+        </Modal>
+      )}
+
+      {showCandModal && (
+        <Modal title="নতুন প্রার্থী যোগ করুন" onClose={() => setShowCandModal(false)}>
+          <FormField label="নাম *"><input style={inputStyle} value={candForm.name} onChange={e => setCandForm({ ...candForm, name: e.target.value })} /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="ফোন"><input style={inputStyle} value={candForm.phone} onChange={e => setCandForm({ ...candForm, phone: e.target.value })} /></FormField>
+            <FormField label="ইমেইল"><input style={inputStyle} value={candForm.email} onChange={e => setCandForm({ ...candForm, email: e.target.value })} /></FormField>
+          </div>
+          <FormField label="জীবনবৃত্তান্ত (Resume)">
+            <input type="file" ref={candUploadRef} onChange={uploadResume} style={inputStyle} />
+            {candForm.resume_url && <div style={{ fontSize: 11, color: C.green, marginTop: 4 }}>✅ আপলোড হয়েছে</div>}
+          </FormField>
+          <FormField label="নোট"><textarea style={{ ...inputStyle, minHeight: 60 }} value={candForm.notes} onChange={e => setCandForm({ ...candForm, notes: e.target.value })} /></FormField>
+          <button onClick={saveCandidate} style={btnPrimary}>✅ যোগ করুন</button>
         </Modal>
       )}
     </div>
@@ -2697,16 +3321,33 @@ const ALL_MENU = [
   { id: "boq", icon: "📋", label: "BOQ সিস্টেম", roles: ["admin"] },
   { id: "clients", icon: "👥", label: "ক্লায়েন্ট", roles: ["admin"] },
   { id: "employees", icon: "👷", label: "কর্মী (HR)", roles: ["admin"] },
+  { id: "leave", icon: "🌴", label: "ছুটি ব্যবস্থাপনা", roles: ["admin"] },
   { id: "attendance", icon: "📋", label: "উপস্থিতি", roles: ["admin"] },
   { id: "smart_attendance", icon: "⏱️", label: "স্মার্ট অ্যাটেন্ডেন্স", roles: ["admin"] },
   { id: "my_attendance", icon: "🙋", label: "আমার হাজিরা", roles: ["admin", "employee"] },
   { id: "finance", icon: "💰", label: "আর্থিক", roles: ["admin"] },
+  { id: "payroll", icon: "🧾", label: "পে-রোল", roles: ["admin"] },
+  { id: "recruitment", icon: "🧑‍💼", label: "নিয়োগ", roles: ["admin"] },
   { id: "site", icon: "📍", label: "সাইট প্রগ্রেস", roles: ["admin"] },
   { id: "materials", icon: "📦", label: "সামগ্রী", roles: ["admin"] },
   { id: "analytics", icon: "📊", label: "রিপোর্ট & Analytics", roles: ["admin"] },
   { id: "users", icon: "👤", label: "User Management", roles: ["admin"] },
   { id: "password", icon: "🔑", label: "পাসওয়ার্ড", roles: ["admin", "site_engineer"] },
 ];
+
+// Menu items that actually render something for an "employee" role account.
+// (Most screens above are admin-only dashboards and will show a blank page
+// if granted to an employee, since they require isAdmin to render.)
+const EMPLOYEE_SAFE_MENU = ALL_MENU.filter(m => m.id === "my_attendance" || m.id === "password");
+
+const LEAVE_TYPES = [
+  { id: "casual", label: "নৈমিত্তিক ছুটি", quota: 10 },
+  { id: "sick", label: "অসুস্থতা ছুটি", quota: 14 },
+  { id: "annual", label: "বার্ষিক ছুটি", quota: 15 },
+  { id: "maternity", label: "মাতৃত্বকালীন ছুটি", quota: 112 },
+  { id: "paternity", label: "পিতৃত্বকালীন ছুটি", quota: 7 },
+];
+
 
 
 
@@ -3480,12 +4121,15 @@ function UserManagement({ employees, lang }) {
               </FormField>
               <FormField label={T.permissions_label}>
                 <div style={{ border: "1px solid " + C.gray200, borderRadius: 8, padding: 12, maxHeight: 220, overflowY: "auto" }}>
-                  {ALL_MENU.map(m => (
+                  {EMPLOYEE_SAFE_MENU.map(m => (
                     <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }} onClick={() => togglePermission(m.id)}>
                       <input type="checkbox" checked={(form.permissions || []).includes(m.id)} onChange={() => togglePermission(m.id)} style={{ accentColor: C.primary, width: 16, height: 16 }} />
                       <span style={{ fontSize: 13 }}>{m.icon} {TXT[lang || "bn"][m.id] || m.label}</span>
                     </div>
                   ))}
+                  <div style={{ fontSize: 11, color: C.gray400, marginTop: 6 }}>
+                    ℹ️ আপাতত শুধু এই স্ক্রিনগুলোই Employee-দের জন্য কাজ করে। অন্য কোনো screen (Dashboard, Finance ইত্যাদি) দরকার হলে জানান, বানিয়ে দেব।
+                  </div>
                 </div>
               </FormField>
             </>
@@ -3602,10 +4246,13 @@ export default function App() {
               {active === "boq" && isAdmin && <BOQSystem />}
               {active === "clients" && isAdmin && <Clients data={data.clients} onRefresh={loadAll} />}
               {active === "employees" && isAdmin && <Employees data={data.employees} onRefresh={loadAll} />}
+              {active === "leave" && isAdmin && <LeaveManagement employees={data.employees} />}
               {active === "attendance" && isAdmin && <Attendance employees={data.employees} />}
               {active === "smart_attendance" && isAdmin && <SmartAttendance employees={data.employees} lang={lang} />}
               {active === "my_attendance" && (isAdmin || currentUser?.role === "employee") && <MyAttendance currentUser={currentUser} lang={lang} />}
               {active === "finance" && isAdmin && <Finance data={data.transactions} onRefresh={loadAll} />}
+              {active === "payroll" && isAdmin && <Payroll employees={data.employees} />}
+              {active === "recruitment" && isAdmin && <Recruitment />}
               {active === "site" && isAdmin && <SiteProgress data={data.siteProgress} projects={data.projects} onRefresh={loadAll} />}
               {active === "materials" && isAdmin && <Materials data={data.materials} onRefresh={loadAll} />}
               {active === "analytics" && isAdmin && <Analytics transactions={data.transactions} projects={data.projects} employees={data.employees} />}
