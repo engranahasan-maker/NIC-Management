@@ -2216,6 +2216,27 @@ const ALL_MENU = [
 // ============================================================
 // INTERIOR PROJECTS MODULE
 // ============================================================
+function IPNewProjectModal({ onSave, onClose }) {
+  const [form, setForm] = useState({ name: "", client_name: "", site_address: "", project_type: "আবাসিক ইন্টেরিয়র", start_date: "", end_date: "", chief_designer: "", total_budget: "", deal_amount: "", status: "চলমান" });
+  return (
+    <Modal title="নতুন Interior প্রজেক্ট" onClose={onClose} size={580}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ gridColumn: "1/-1" }}><FormField label="প্রজেক্টের নাম *"><input style={inputStyle} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="যেমন: রহিম সাহেবের ফ্ল্যাট ইন্টেরিয়র" /></FormField></div>
+        <FormField label="ক্লায়েন্টের নাম *"><input style={inputStyle} value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} /></FormField>
+        <FormField label="প্রজেক্টের ধরন"><select style={inputStyle} value={form.project_type} onChange={e => setForm({ ...form, project_type: e.target.value })}>{["আবাসিক ইন্টেরিয়র", "কমার্শিয়াল ইন্টেরিয়র", "অফিস ইন্টেরিয়র", "রেস্তোরাঁ ইন্টেরিয়র", "মডুলার কিচেন", "থ্রিডি ডিজাইন", "রিনোভেশন", "অন্যান্য"].map(t => <option key={t}>{t}</option>)}</select></FormField>
+        <div style={{ gridColumn: "1/-1" }}><FormField label="সাইটের ঠিকানা"><input style={inputStyle} value={form.site_address} onChange={e => setForm({ ...form, site_address: e.target.value })} /></FormField></div>
+        <FormField label="প্রধান ডিজাইনার"><input style={inputStyle} value={form.chief_designer} onChange={e => setForm({ ...form, chief_designer: e.target.value })} /></FormField>
+        <FormField label="স্ট্যাটাস"><select style={inputStyle} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>{["চলমান", "বিরতি", "সম্পন্ন", "বাতিল"].map(s => <option key={s}>{s}</option>)}</select></FormField>
+        <FormField label="শুরুর তারিখ"><input style={inputStyle} type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} /></FormField>
+        <FormField label="শেষের তারিখ"><input style={inputStyle} type="date" value={form.end_date} onChange={e => setForm({ ...form, end_date: e.target.value })} /></FormField>
+        <FormField label="চুক্তি মূল্য (৳)"><input style={inputStyle} type="number" value={form.deal_amount} onChange={e => setForm({ ...form, deal_amount: e.target.value })} /></FormField>
+        <FormField label="মোট বাজেট (৳)"><input style={inputStyle} type="number" value={form.total_budget} onChange={e => setForm({ ...form, total_budget: e.target.value })} /></FormField>
+      </div>
+      <button onClick={() => { if (!form.name || !form.client_name) return alert("নাম ও ক্লায়েন্ট আবশ্যক"); onSave(form); }} style={btnPrimary}>✅ প্রজেক্ট তৈরি করুন</button>
+    </Modal>
+  );
+}
+
 function InteriorProjects({ currentUser }) {
   const [projects, setProjects] = useState([]);
   const [selProject, setSelProject] = useState(null);
@@ -2296,35 +2317,11 @@ function InteriorProjects({ currentUser }) {
         </>
       )}
 
-      {showNewProject && (
-        <Modal title="নতুন Interior প্রজেক্ট" onClose={() => setShowNewProject(false)} size={580}>
-          {(() => {
-            const [f, setF] = useState({ name: "", client_name: "", site_address: "", project_type: "আবাসিক ইন্টেরিয়র", start_date: "", end_date: "", chief_designer: "", total_budget: "", deal_amount: "", status: "চলমান" });
-            return (
-              <div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div style={{ gridColumn: "1/-1" }}><FormField label="প্রজেক্টের নাম *"><input style={inputStyle} value={f.name} onChange={e => setF({ ...f, name: e.target.value })} placeholder="যেমন: রহিম সাহেবের ফ্ল্যাট ইন্টেরিয়র" /></FormField></div>
-                  <FormField label="ক্লায়েন্টের নাম *"><input style={inputStyle} value={f.client_name} onChange={e => setF({ ...f, client_name: e.target.value })} /></FormField>
-                  <FormField label="প্রজেক্টের ধরন"><select style={inputStyle} value={f.project_type} onChange={e => setF({ ...f, project_type: e.target.value })}>{["আবাসিক ইন্টেরিয়র", "কমার্শিয়াল ইন্টেরিয়র", "অফিস ইন্টেরিয়র", "রেস্তোরাঁ ইন্টেরিয়র", "মডুলার কিচেন", "থ্রিডি ডিজাইন", "রিনোভেশন", "অন্যান্য"].map(t => <option key={t}>{t}</option>)}</select></FormField>
-                  <div style={{ gridColumn: "1/-1" }}><FormField label="সাইটের ঠিকানা"><input style={inputStyle} value={f.site_address} onChange={e => setF({ ...f, site_address: e.target.value })} /></FormField></div>
-                  <FormField label="প্রধান ডিজাইনার"><input style={inputStyle} value={f.chief_designer} onChange={e => setF({ ...f, chief_designer: e.target.value })} /></FormField>
-                  <FormField label="স্ট্যাটাস"><select style={inputStyle} value={f.status} onChange={e => setF({ ...f, status: e.target.value })}>{["চলমান", "বিরতি", "সম্পন্ন", "বাতিল"].map(s => <option key={s}>{s}</option>)}</select></FormField>
-                  <FormField label="শুরুর তারিখ"><input style={inputStyle} type="date" value={f.start_date} onChange={e => setF({ ...f, start_date: e.target.value })} /></FormField>
-                  <FormField label="শেষের তারিখ"><input style={inputStyle} type="date" value={f.end_date} onChange={e => setF({ ...f, end_date: e.target.value })} /></FormField>
-                  <FormField label="চুক্তি মূল্য (৳)"><input style={inputStyle} type="number" value={f.deal_amount} onChange={e => setF({ ...f, deal_amount: e.target.value })} /></FormField>
-                  <FormField label="মোট বাজেট (৳)"><input style={inputStyle} type="number" value={f.total_budget} onChange={e => setF({ ...f, total_budget: e.target.value })} /></FormField>
-                </div>
-                <button onClick={async () => {
-                  if (!f.name || !f.client_name) return alert("নাম ও ক্লায়েন্ট আবশ্যক");
-                  const { error } = await supabase.from("interior_projects").insert([{ ...f, total_budget: +f.total_budget || 0, deal_amount: +f.deal_amount || 0, start_date: f.start_date || null, end_date: f.end_date || null }]);
-                  if (error) return alert("Error: " + error.message);
-                  await loadProjects(); setShowNewProject(false);
-                }} style={btnPrimary}>✅ প্রজেক্ট তৈরি করুন</button>
-              </div>
-            );
-          })()}
-        </Modal>
-      )}
+      {showNewProject && <IPNewProjectModal onSave={async (form) => {
+        const { error } = await supabase.from("interior_projects").insert([{ ...form, total_budget: +form.total_budget || 0, deal_amount: +form.deal_amount || 0, start_date: form.start_date || null, end_date: form.end_date || null }]);
+        if (error) return alert("Error: " + error.message);
+        await loadProjects(); setShowNewProject(false);
+      }} onClose={() => setShowNewProject(false)} />}
     </div>
   );
 }
