@@ -63,7 +63,8 @@ const TXT = {
     live_work_updates: "লাইভ কাজের আপডেট", no_updates_yet: "এখনো কোনো আপডেট নেই",
     uploading: "আপলোড হচ্ছে...", link_employee: "কর্মীর সাথে লিংক করুন", select_employee: "কর্মী বাছাই করুন",
     permissions_label: "কোন কোন Menu Access পাবে (টিক দিন)", role_employee: "👤 Employee",
-    leave: "ছুটি ব্যবস্থাপনা", payroll: "পে-রোল", recruitment: "নিয়োগ",
+    leave: "ছুটি ব্যবস্থাপনা", payroll: "পে-রোল", recruitment: "নিয়োগ", hr_system: "HR ও পে-রোল সিস্টেম",
+    hr_reports: "HR রিপোর্ট", disbursement: "বিতরণ চ্যানেল", today: "আজ", this_week: "এই সপ্তাহ", this_month: "এই মাস", custom: "কাস্টম",
   },
   en: {
     dashboard: "Dashboard", projects: "Projects", construction: "Construction Projects", interior: "Interior Projects",
@@ -87,7 +88,8 @@ const TXT = {
     live_work_updates: "Live Work Updates", no_updates_yet: "No updates yet",
     uploading: "Uploading...", link_employee: "Link to Employee", select_employee: "Select employee",
     permissions_label: "Menu Access (check to allow)", role_employee: "👤 Employee",
-    leave: "Leave Management", payroll: "Payroll", recruitment: "Recruitment",
+    leave: "Leave Management", payroll: "Payroll", recruitment: "Recruitment", hr_system: "HR & Payroll System",
+    hr_reports: "HR Reports", disbursement: "Disbursement Channel", today: "Today", this_week: "This Week", this_month: "This Month", custom: "Custom",
   },
 };
 
@@ -1724,8 +1726,9 @@ function Payroll({ employees }) {
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ allowances: 0, deductions: 0 });
+  const [form, setForm] = useState({ allowances: 0, deductions: 0, disbursement_channel: "Bank", disbursement_date: "" });
   const [printRow, setPrintRow] = useState(null);
+  const [tab, setTab] = useState("list");
 
   const load = async () => {
     setLoading(true);
@@ -1740,22 +1743,29 @@ function Payroll({ employees }) {
   const generateRun = async () => {
     const existingIds = new Set(runs.map(r => r.employee_id));
     const toCreate = employees.filter(e => e.status === "কর্মরত" && !existingIds.has(e.id)).map(e => ({
-      employee_id: e.id, month, basic: e.salary || 0, allowances: 0, deductions: 0, net_pay: e.salary || 0, status: "Unpaid",
+      employee_id: e.id, month, basic: e.salary || 0, allowances: 0, deductions: 0, net_pay: e.salary || 0, status: "Unpaid", disbursement_channel: "Bank",
     }));
     if (toCreate.length === 0) return alert("এই মাসের জন্য সব কর্মীর পে-রোল ইতিমধ্যে তৈরি আছে");
     await supabase.from("payroll_runs").insert(toCreate);
     load();
   };
 
-  const openEdit = (r) => { setEditItem(r); setForm({ allowances: r.allowances || 0, deductions: r.deductions || 0 }); };
+  const openEdit = (r) => { setEditItem(r); setForm({ allowances: r.allowances || 0, deductions: r.deductions || 0, disbursement_channel: r.disbursement_channel || "Bank", disbursement_date: r.disbursement_date || "" }); };
   const saveEdit = async () => {
     const net = (editItem.basic || 0) + (+form.allowances || 0) - (+form.deductions || 0);
-    await supabase.from("payroll_runs").update({ allowances: +form.allowances || 0, deductions: +form.deductions || 0, net_pay: net }).eq("id", editItem.id);
+    await supabase.from("payroll_runs").update({ allowances: +form.allowances || 0, deductions: +form.deductions || 0, net_pay: net, disbursement_channel: form.disbursement_channel, disbursement_date: form.disbursement_date || null }).eq("id", editItem.id);
     setEditItem(null); load();
   };
 
   const markPaid = async (r) => {
     await supabase.from("payroll_runs").update({ status: "Paid", paid_at: new Date().toISOString() }).eq("id", r.id);
+    load();
+  };
+
+  const setChannelDate = async (channel, date) => {
+    const ids = runs.filter(r => (r.disbursement_channel || "Bank") === channel).map(r => r.id);
+    if (ids.length === 0) return;
+    await supabase.from("payroll_runs").update({ disbursement_date: date }).in("id", ids);
     load();
   };
 
@@ -1765,7 +1775,22 @@ function Payroll({ employees }) {
   };
 
   const totalNet = runs.reduce((s, r) => s + (r.net_pay || 0), 0);
+  const totalAllowances = runs.reduce((s, r) => s + (r.allowances || 0), 0);
+  const totalDeductions = runs.reduce((s, r) => s + (r.deductions || 0), 0);
+  const totalBasic = runs.reduce((s, r) => s + (r.basic || 0), 0);
   const paidCount = runs.filter(r => r.status === "Paid").length;
+
+  const channelGroups = DISBURSEMENT_CHANNELS.map(ch => {
+    const items = runs.filter(r => (r.disbursement_channel || "Bank") === ch.id);
+    return { ...ch, count: items.length, totalDeduction: items.reduce((s, r) => s + (r.deductions || 0), 0), totalNet: items.reduce((s, r) => s + (r.net_pay || 0), 0), date: items[0]?.disbursement_date || "" };
+  }).filter(g => g.count > 0);
+
+  const channelDonut = channelGroups.map(g => ({ value: g.count, color: g.color }));
+  const earningsDonut = [
+    { value: totalBasic, color: C.primary },
+    { value: totalAllowances, color: C.green },
+    { value: totalDeductions, color: C.red },
+  ];
 
   return (
     <div>
@@ -1783,40 +1808,111 @@ function Payroll({ employees }) {
         <button onClick={generateRun} style={{ ...btnPrimary, width: "auto", margin: 0 }}>⚙️ এই মাসের পে-রোল তৈরি করুন</button>
       </div>
 
-      <Card>
-        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : runs.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>এই মাসের জন্য এখনো পে-রোল তৈরি হয়নি। উপরের বাটনে ক্লিক করুন।</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "মূল বেতন", "ভাতা", "কর্তন", "নীট প্রদেয়", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
-            <tbody>
-              {runs.map(r => (
-                <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
-                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{empById[r.employee_id]?.name || "—"}</td>
-                  <td style={{ padding: "10px 14px" }}>{fmt(r.basic)}</td>
-                  <td style={{ padding: "10px 14px", color: C.green }}>+{fmt(r.allowances)}</td>
-                  <td style={{ padding: "10px 14px", color: C.red }}>-{fmt(r.deductions)}</td>
-                  <td style={{ padding: "10px 14px", fontWeight: 700, color: C.primaryDark }}>{fmt(r.net_pay)}</td>
-                  <td style={{ padding: "10px 14px" }}><Badge label={r.status === "Paid" ? "✅ Paid" : "⏳ Unpaid"} color={r.status === "Paid" ? "green" : "yellow"} /></td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => openEdit(r)} style={btnEdit}>✏️</button>
-                      <button onClick={() => doPrint(r)} style={btnEdit}>🖨️</button>
-                      {r.status !== "Paid" && <button onClick={() => markPaid(r)} style={{ ...btnEdit, background: C.greenLight, color: C.green }}>✓ Paid</button>}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {[["list", "📋 তালিকা"], ["disbursement", "🏦 বিতরণ চ্যানেল"], ["analytics", "📊 Analytics"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ background: tab === id ? C.primary : C.white, color: tab === id ? C.white : C.gray800, border: "1px solid " + (tab === id ? C.primary : C.gray200), borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "list" && (
+        <Card>
+          {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : runs.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>এই মাসের জন্য এখনো পে-রোল তৈরি হয়নি। উপরের বাটনে ক্লিক করুন।</div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "মূল বেতন", "ভাতা", "কর্তন", "নীট প্রদেয়", "চ্যানেল", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {runs.map(r => (
+                  <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                    <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{empById[r.employee_id]?.name || "—"}</td>
+                    <td style={{ padding: "10px 14px" }}>{fmt(r.basic)}</td>
+                    <td style={{ padding: "10px 14px", color: C.green }}>+{fmt(r.allowances)}</td>
+                    <td style={{ padding: "10px 14px", color: C.red }}>-{fmt(r.deductions)}</td>
+                    <td style={{ padding: "10px 14px", fontWeight: 700, color: C.primaryDark }}>{fmt(r.net_pay)}</td>
+                    <td style={{ padding: "10px 14px" }}><Badge label={DISBURSEMENT_CHANNELS.find(c => c.id === (r.disbursement_channel || "Bank"))?.label} color="primary" /></td>
+                    <td style={{ padding: "10px 14px" }}><Badge label={r.status === "Paid" ? "✅ Paid" : "⏳ Unpaid"} color={r.status === "Paid" ? "green" : "yellow"} /></td>
+                    <td style={{ padding: "10px 14px" }}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={() => openEdit(r)} style={btnEdit}>✏️</button>
+                        <button onClick={() => doPrint(r)} style={btnEdit}>🖨️</button>
+                        {r.status !== "Paid" && <button onClick={() => markPaid(r)} style={{ ...btnEdit, background: C.greenLight, color: C.green }}>✓ Paid</button>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      )}
+
+      {tab === "disbursement" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 14 }}>
+          {channelGroups.length === 0 ? (
+            <Card><div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>এই মাসে কোনো পে-রোল নেই</div></Card>
+          ) : channelGroups.map(g => (
+            <Card key={g.id}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: g.color, display: "inline-block" }} />
+                <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 14 }}>{g.label}</div>
+              </div>
+              <ProfileField label="মোট কর্মী" value={fmtNum(g.count) + " জন"} />
+              <ProfileField label="মোট কর্তন" value={fmt(g.totalDeduction)} />
+              <ProfileField label="মোট নীট প্রদেয়" value={fmt(g.totalNet)} />
+              <FormField label="বিতরণের তারিখ">
+                <input type="date" style={inputStyle} value={g.date || ""} onChange={e => setChannelDate(g.id, e.target.value)} />
+              </FormField>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {tab === "analytics" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <Card>
+            <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>🏦 Disbursement Channel</div>
+            {channelGroups.length === 0 ? <div style={{ color: C.gray400, textAlign: "center", padding: 20, fontSize: 13 }}>ডেটা নেই</div> : (
+              <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+                <DonutChart segments={channelDonut} centerLabel={fmtNum(runs.length)} centerSub="মোট কর্মী" />
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {channelGroups.map(g => (
+                    <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: g.color, display: "inline-block" }} />
+                      <span style={{ color: C.gray800, minWidth: 90 }}>{g.label}</span>
+                      <span style={{ fontWeight: 700, color: C.primaryDark }}>{fmtNum(g.count)}</span>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+          <Card>
+            <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>💰 Earnings Overview</div>
+            {runs.length === 0 ? <div style={{ color: C.gray400, textAlign: "center", padding: 20, fontSize: 13 }}>ডেটা নেই</div> : (
+              <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+                <DonutChart segments={earningsDonut} centerLabel={fmt(totalNet)} centerSub="নীট বেতন" />
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: C.primary, display: "inline-block" }} /><span style={{ color: C.gray800, minWidth: 90 }}>মূল বেতন</span><span style={{ fontWeight: 700, color: C.primaryDark }}>{fmt(totalBasic)}</span></div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: C.green, display: "inline-block" }} /><span style={{ color: C.gray800, minWidth: 90 }}>ভাতা</span><span style={{ fontWeight: 700, color: C.primaryDark }}>{fmt(totalAllowances)}</span></div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: C.red, display: "inline-block" }} /><span style={{ color: C.gray800, minWidth: 90 }}>কর্তন</span><span style={{ fontWeight: 700, color: C.primaryDark }}>{fmt(totalDeductions)}</span></div>
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
 
       {editItem && (
-        <Modal title="পে-রোল সম্পাদনা — " onClose={() => setEditItem(null)}>
+        <Modal title="পে-রোল সম্পাদনা" onClose={() => setEditItem(null)}>
           <FormField label="মূল বেতন"><input style={inputStyle} value={fmt(editItem.basic)} disabled /></FormField>
           <FormField label="ভাতা (Allowances)"><input type="number" style={inputStyle} value={form.allowances} onChange={e => setForm({ ...form, allowances: e.target.value })} /></FormField>
           <FormField label="কর্তন (Deductions)"><input type="number" style={inputStyle} value={form.deductions} onChange={e => setForm({ ...form, deductions: e.target.value })} /></FormField>
+          <FormField label="বিতরণ চ্যানেল">
+            <select style={inputStyle} value={form.disbursement_channel} onChange={e => setForm({ ...form, disbursement_channel: e.target.value })}>
+              {DISBURSEMENT_CHANNELS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </FormField>
+          <FormField label="বিতরণের তারিখ"><input type="date" style={inputStyle} value={form.disbursement_date} onChange={e => setForm({ ...form, disbursement_date: e.target.value })} /></FormField>
           <div style={{ fontSize: 13, color: C.gray600, marginBottom: 14 }}>নীট প্রদেয়: <strong style={{ color: C.primaryDark }}>{fmt((editItem.basic || 0) + (+form.allowances || 0) - (+form.deductions || 0))}</strong></div>
           <button onClick={saveEdit} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
         </Modal>
@@ -1840,6 +1936,7 @@ function Payroll({ employees }) {
                   <tr><td>ভাতা (Allowances)</td><td>{fmt(printRow.allowances)}</td></tr>
                   <tr><td>কর্তন (Deductions)</td><td>-{fmt(printRow.deductions)}</td></tr>
                   <tr><td style={{ fontWeight: 700 }}>নীট প্রদেয়</td><td style={{ fontWeight: 700 }}>{fmt(printRow.net_pay)}</td></tr>
+                  <tr><td>বিতরণ চ্যানেল</td><td>{DISBURSEMENT_CHANNELS.find(c => c.id === (printRow.disbursement_channel || "Bank"))?.label}</td></tr>
                   <tr><td>স্ট্যাটাস</td><td>{printRow.status === "Paid" ? "পরিশোধিত" : "অপরিশোধিত"}</td></tr>
                 </tbody>
               </table>
@@ -2079,6 +2176,135 @@ function Recruitment() {
           <button onClick={saveCandidate} style={btnPrimary}>✅ যোগ করুন</button>
         </Modal>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// HR REPORTS (All Employees Summary with date filters)
+// ============================================================
+function HRReports({ employees }) {
+  const [range, setRange] = useState("today");
+  const [customStart, setCustomStart] = useState(new Date().toISOString().split("T")[0]);
+  const [customEnd, setCustomEnd] = useState(new Date().toISOString().split("T")[0]);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const getRange = () => {
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    if (range === "today") return { start: todayStr, end: todayStr };
+    if (range === "week") {
+      const d = new Date(today); d.setDate(d.getDate() - 6);
+      return { start: d.toISOString().split("T")[0], end: todayStr };
+    }
+    if (range === "month") {
+      const d = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { start: d.toISOString().split("T")[0], end: todayStr };
+    }
+    return { start: customStart, end: customEnd };
+  };
+
+  const load = async () => {
+    setLoading(true);
+    const { start, end } = getRange();
+    const { data } = await supabase.from("attendance").select("*").gte("date", start).lte("date", end);
+    const byEmp = {};
+    employees.forEach(e => { byEmp[e.id] = { employee: e, present: 0, absent: 0, late: 0, leave: 0 }; });
+    (data || []).forEach(a => {
+      const row = byEmp[a.employee_id]; if (!row) return;
+      if (a.status === "উপস্থিত") row.present++;
+      else if (a.status === "অনুপস্থিত") row.absent++;
+      else if (a.status === "অর্ধদিন") row.late++;
+      else if (a.status === "ছুটি") row.leave++;
+    });
+    setRows(Object.values(byEmp));
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [range, customStart, customEnd]);
+
+  const { start, end } = getRange();
+  const handleExport = () => exportToExcel(rows.map(r => ({ নাম: r.employee.name, বিভাগ: r.employee.dept, উপস্থিত: r.present, অনুপস্থিত: r.absent, অর্ধদিন: r.late, ছুটি: r.leave })), "HR Report", "All Employees Summary");
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 15 }}>📊 All Employees Summary</div>
+        <button onClick={handleExport} style={btnEdit}>⬇️ Export</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+        {[["today", "আজ"], ["week", "এই সপ্তাহ"], ["month", "এই মাস"], ["custom", "কাস্টম"]].map(([id, label]) => (
+          <button key={id} onClick={() => setRange(id)} style={{ background: range === id ? C.primary : C.white, color: range === id ? C.white : C.gray800, border: "1px solid " + (range === id ? C.primary : C.gray200), borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+        ))}
+        {range === "custom" && (
+          <>
+            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
+            <span style={{ alignSelf: "center", color: C.gray600 }}>→</span>
+            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
+          </>
+        )}
+      </div>
+      <div style={{ fontSize: 12, color: C.gray400, marginBottom: 12 }}>{start} → {end}</div>
+
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "বিভাগ", "উপস্থিত", "অনুপস্থিত", "অর্ধদিন", "ছুটি"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.employee.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{r.employee.name}</td>
+                  <td style={{ padding: "10px 14px" }}><Badge label={r.employee.dept} color="primary" /></td>
+                  <td style={{ padding: "10px 14px", color: C.green, fontWeight: 700 }}>{fmtNum(r.present)}</td>
+                  <td style={{ padding: "10px 14px", color: C.red, fontWeight: 700 }}>{fmtNum(r.absent)}</td>
+                  <td style={{ padding: "10px 14px", color: "#856404", fontWeight: 700 }}>{fmtNum(r.late)}</td>
+                  <td style={{ padding: "10px 14px", color: C.blue, fontWeight: 700 }}>{fmtNum(r.leave)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// HR SYSTEM HUB (single consolidated menu with subcategories)
+// ============================================================
+function HRSystemHub({ data, onRefresh, lang }) {
+  const [sub, setSub] = useState("employees");
+  const subTabs = [
+    ["employees", "👷 কর্মী তালিকা"],
+    ["leave", "🌴 ছুটি ব্যবস্থাপনা"],
+    ["attendance", "📋 উপস্থিতি"],
+    ["smart_attendance", "⏱️ স্মার্ট অ্যাটেন্ডেন্স"],
+    ["payroll", "🧾 পে-রোল"],
+    ["recruitment", "🧑‍💼 নিয়োগ"],
+    ["reports", "📊 HR রিপোর্ট"],
+  ];
+
+  return (
+    <div>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: C.primaryDark }}>👥 HR ও পে-রোল সিস্টেম</div>
+        <div style={{ fontSize: 12, color: C.gray400 }}>কর্মী, ছুটি, উপস্থিতি, পে-রোল ও নিয়োগ — সব একজায়গায়</div>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap", borderBottom: "1px solid " + C.gray100, paddingBottom: 12 }}>
+        {subTabs.map(([id, label]) => (
+          <button key={id} onClick={() => setSub(id)} style={{ background: sub === id ? C.primary : C.white, color: sub === id ? C.white : C.gray800, border: "1px solid " + (sub === id ? C.primary : C.gray200), borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{label}</button>
+        ))}
+      </div>
+
+      {sub === "employees" && <Employees data={data.employees} onRefresh={onRefresh} />}
+      {sub === "leave" && <LeaveManagement employees={data.employees} />}
+      {sub === "attendance" && <Attendance employees={data.employees} />}
+      {sub === "smart_attendance" && <SmartAttendance employees={data.employees} lang={lang} />}
+      {sub === "payroll" && <Payroll employees={data.employees} />}
+      {sub === "recruitment" && <Recruitment />}
+      {sub === "reports" && <HRReports employees={data.employees} />}
     </div>
   );
 }
@@ -3320,14 +3546,9 @@ const ALL_MENU = [
   { id: "interior", icon: "🛋️", label: "Interior Projects", roles: ["admin", "site_engineer"] },
   { id: "boq", icon: "📋", label: "BOQ সিস্টেম", roles: ["admin"] },
   { id: "clients", icon: "👥", label: "ক্লায়েন্ট", roles: ["admin"] },
-  { id: "employees", icon: "👷", label: "কর্মী (HR)", roles: ["admin"] },
-  { id: "leave", icon: "🌴", label: "ছুটি ব্যবস্থাপনা", roles: ["admin"] },
-  { id: "attendance", icon: "📋", label: "উপস্থিতি", roles: ["admin"] },
-  { id: "smart_attendance", icon: "⏱️", label: "স্মার্ট অ্যাটেন্ডেন্স", roles: ["admin"] },
+  { id: "hr_system", icon: "👥", label: "HR ও পে-রোল সিস্টেম", roles: ["admin"] },
   { id: "my_attendance", icon: "🙋", label: "আমার হাজিরা", roles: ["admin", "employee"] },
   { id: "finance", icon: "💰", label: "আর্থিক", roles: ["admin"] },
-  { id: "payroll", icon: "🧾", label: "পে-রোল", roles: ["admin"] },
-  { id: "recruitment", icon: "🧑‍💼", label: "নিয়োগ", roles: ["admin"] },
   { id: "site", icon: "📍", label: "সাইট প্রগ্রেস", roles: ["admin"] },
   { id: "materials", icon: "📦", label: "সামগ্রী", roles: ["admin"] },
   { id: "analytics", icon: "📊", label: "রিপোর্ট & Analytics", roles: ["admin"] },
@@ -3346,6 +3567,13 @@ const LEAVE_TYPES = [
   { id: "annual", label: "বার্ষিক ছুটি", quota: 15 },
   { id: "maternity", label: "মাতৃত্বকালীন ছুটি", quota: 112 },
   { id: "paternity", label: "পিতৃত্বকালীন ছুটি", quota: 7 },
+];
+
+const DISBURSEMENT_CHANNELS = [
+  { id: "Bank", label: "ব্যাংক", color: "#5B4FCF" },
+  { id: "Bkash", label: "বিকাশ", color: "#E0A800" },
+  { id: "Nagad", label: "নগদ", color: "#FF5A5F" },
+  { id: "Cash", label: "নগদ (Cash)", color: "#3498DB" },
 ];
 
 
@@ -4245,14 +4473,9 @@ export default function App() {
               {active === "interior" && <InteriorProjects currentUser={currentUser} />}
               {active === "boq" && isAdmin && <BOQSystem />}
               {active === "clients" && isAdmin && <Clients data={data.clients} onRefresh={loadAll} />}
-              {active === "employees" && isAdmin && <Employees data={data.employees} onRefresh={loadAll} />}
-              {active === "leave" && isAdmin && <LeaveManagement employees={data.employees} />}
-              {active === "attendance" && isAdmin && <Attendance employees={data.employees} />}
-              {active === "smart_attendance" && isAdmin && <SmartAttendance employees={data.employees} lang={lang} />}
+              {active === "hr_system" && isAdmin && <HRSystemHub data={data} onRefresh={loadAll} lang={lang} />}
               {active === "my_attendance" && (isAdmin || currentUser?.role === "employee") && <MyAttendance currentUser={currentUser} lang={lang} />}
               {active === "finance" && isAdmin && <Finance data={data.transactions} onRefresh={loadAll} />}
-              {active === "payroll" && isAdmin && <Payroll employees={data.employees} />}
-              {active === "recruitment" && isAdmin && <Recruitment />}
               {active === "site" && isAdmin && <SiteProgress data={data.siteProgress} projects={data.projects} onRefresh={loadAll} />}
               {active === "materials" && isAdmin && <Materials data={data.materials} onRefresh={loadAll} />}
               {active === "analytics" && isAdmin && <Analytics transactions={data.transactions} projects={data.projects} employees={data.employees} />}
