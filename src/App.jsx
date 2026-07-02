@@ -38,6 +38,38 @@ const fmt = (n) => "৳" + Number(n || 0).toLocaleString("bn-BD");
 const fmtNum = (n) => Number(n || 0).toLocaleString("bn-BD");
 
 // ============================================================
+// TRANSLATIONS (BN/EN)
+// ============================================================
+const TXT = {
+  bn: {
+    dashboard: "ড্যাশবোর্ড", projects: "প্রজেক্ট", construction: "Construction Projects", interior: "Interior Projects",
+    boq: "BOQ সিস্টেম", clients: "ক্লায়েন্ট", employees: "কর্মী (HR)", attendance: "উপস্থিতি",
+    smart_attendance: "স্মার্ট অ্যাটেন্ডেন্স", finance: "আর্থিক", site: "সাইট প্রগ্রেস", materials: "সামগ্রী",
+    analytics: "রিপোর্ট & Analytics", users: "User Management", password: "পাসওয়ার্ড",
+    good_morning: "শুভ সকাল", have_productive_day: "আপনার দিনটি প্রোডাক্টিভ হোক!",
+    todays_attendance: "আজকের উপস্থিতি", live_status: "লাইভ স্ট্যাটাস",
+    present: "উপস্থিত", absent: "অনুপস্থিত", late: "দেরি", on_leave: "ছুটিতে", total: "মোট",
+    department_wise_summary: "বিভাগ ভিত্তিক সারাংশ", recent_checkins: "সাম্প্রতিক চেক-ইন",
+    quick_checkin: "দ্রুত চেক-ইন", not_marked: "চিহ্নিত হয়নি", mark: "চিহ্নিত করুন",
+    refresh: "রিফ্রেশ", search_employee: "কর্মী খুঁজুন...", no_records: "কোনো রেকর্ড নেই",
+    live: "লাইভ", employees_label: "জন কর্মী", of_total: "মোট এর মধ্যে",
+  },
+  en: {
+    dashboard: "Dashboard", projects: "Projects", construction: "Construction Projects", interior: "Interior Projects",
+    boq: "BOQ System", clients: "Clients", employees: "Personnel (HR)", attendance: "Attendance",
+    smart_attendance: "Smart Attendance", finance: "Financial", site: "Site Progress", materials: "Materials",
+    analytics: "Reports & Analytics", users: "User Management", password: "Password",
+    good_morning: "Good Morning", have_productive_day: "Have a productive day!",
+    todays_attendance: "Today's Attendance", live_status: "Live Status",
+    present: "Present", absent: "Absent", late: "Late", on_leave: "On Leave", total: "Total",
+    department_wise_summary: "Department Wise Summary", recent_checkins: "Recent Check-ins",
+    quick_checkin: "Quick Check-in", not_marked: "Not marked", mark: "Mark",
+    refresh: "Refresh", search_employee: "Search employee...", no_records: "No records yet",
+    live: "Live", employees_label: "employees", of_total: "of total",
+  },
+};
+
+// ============================================================
 // AUTH
 // ============================================================
 const ADMIN_USER = "admin@noksha.com";
@@ -66,7 +98,7 @@ const printSection = async (title, contentId) => {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; }
     html, body { height: 100%; margin: 0; padding: 0; }
-    .page { width: 210mm; min-height: 297mm; padding: 12mm 14mm 0 14mm; }
+    .page { width: 210mm; min-height: 297mm; padding: 12mm 14mm 26mm 14mm; box-sizing: border-box; position: relative; }
     /* HEADER - exact Noksha Pad layout */
     .pad-header {
       display: flex;
@@ -115,28 +147,20 @@ const printSection = async (title, contentId) => {
     th { background: #3F5F45; color: white; padding: 5px 7px; text-align: left; border: 0.5px solid #2A3F2E; }
     td { padding: 5px 7px; border-bottom: 0.5px solid #E0E0E0; font-size: 9pt; }
     tr:nth-child(even) td { background: #F5F8F5; }
-    /* FOOTER - fixed at bottom */
-    .pad-footer {
-      position: running(footer);
-    }
-    @page {
-      @bottom-center {
-        content: element(footer);
-      }
-      margin-bottom: 25mm;
-    }
+    /* FOOTER - fixed at bottom of every printed page */
     .pad-footer-fixed {
       display: none;
     }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .screen-footer { display: none; }
       .pad-footer-fixed {
         display: block;
         position: fixed;
-        bottom: 0;
+        bottom: 6mm;
         left: 14mm;
         right: 14mm;
-        padding: 5px 0 8px;
+        padding: 5px 0 0;
         border-top: 1px solid #aaa;
         font-size: 7.5pt;
         color: #555;
@@ -875,6 +899,214 @@ function Attendance({ employees }) {
           </table>
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: C.green, fontWeight: 600 }}>✅ পরিবর্তন স্বয়ংক্রিয়ভাবে সংরক্ষিত হচ্ছে</div>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// DONUT CHART (pure SVG, no libraries)
+// ============================================================
+function DonutChart({ segments, size = 170, thickness = 24, centerLabel, centerSub }) {
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  const r = (size - thickness) / 2;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+      <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={C.gray100} strokeWidth={thickness} />
+        {segments.filter(s => s.value > 0).map((seg, i) => {
+          const frac = seg.value / total;
+          const dash = frac * c;
+          const el = (
+            <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={seg.color} strokeWidth={thickness}
+              strokeDasharray={`${dash} ${c - dash}`} strokeDashoffset={-offset} strokeLinecap="butt" />
+          );
+          offset += dash;
+          return el;
+        })}
+      </g>
+      <text x="50%" y="46%" textAnchor="middle" fontSize="26" fontWeight="800" fill={C.primaryDark}>{centerLabel}</text>
+      <text x="50%" y="61%" textAnchor="middle" fontSize="11" fill={C.gray600}>{centerSub}</text>
+    </svg>
+  );
+}
+
+// ============================================================
+// HR SMART ATTENDANCE SYSTEM
+// ============================================================
+function SmartAttendance({ employees, lang }) {
+  const T = TXT[lang];
+  const today = new Date().toISOString().split("T")[0];
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  const load = async () => {
+    const { data } = await supabase.from("attendance").select("*").eq("date", today).order("id", { ascending: false });
+    setRows(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+    const channel = supabase.channel("attendance-live-" + today)
+      .on("postgres_changes", { event: "*", schema: "public", table: "attendance", filter: `date=eq.${today}` }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const statusMap = { "উপস্থিত": "present", "অনুপস্থিত": "absent", "অর্ধদিন": "late", "ছুটি": "on_leave" };
+  const reverseStatus = { present: "উপস্থিত", absent: "অনুপস্থিত", late: "অর্ধদিন", on_leave: "ছুটি" };
+  const empById = {}; employees.forEach(e => { empById[e.id] = e; });
+  const attByEmp = {}; rows.forEach(r => { attByEmp[r.employee_id] = r; });
+
+  const counts = { present: 0, absent: 0, late: 0, on_leave: 0 };
+  rows.forEach(r => { const k = statusMap[r.status]; if (k) counts[k]++; });
+  const total = employees.length;
+
+  const donutSegments = [
+    { value: counts.present, color: C.green },
+    { value: counts.absent, color: C.red },
+    { value: counts.late, color: C.yellow },
+    { value: counts.on_leave, color: C.blue },
+  ];
+
+  const depts = [...new Set(employees.map(e => e.dept || "—"))];
+  const deptSummary = depts.map(d => {
+    const deptEmps = employees.filter(e => (e.dept || "—") === d);
+    const present = deptEmps.filter(e => statusMap[attByEmp[e.id]?.status] === "present").length;
+    return { dept: d, present, total: deptEmps.length };
+  });
+
+  const recentSorted = [...rows].sort((a, b) => {
+    if (a.created_at && b.created_at) return new Date(b.created_at) - new Date(a.created_at);
+    return (b.id || 0) - (a.id || 0);
+  });
+  const recentList = recentSorted.slice(0, 8);
+
+  const unmarked = employees.filter(e => !attByEmp[e.id]).filter(e => (e.name || "").toLowerCase().includes(search.toLowerCase()));
+
+  const quickMark = async (empId, statusKey) => {
+    const status = reverseStatus[statusKey];
+    setRows(prev => [...prev, { id: "temp-" + empId, employee_id: empId, date: today, status, created_at: new Date().toISOString() }]);
+    const existing = await supabase.from("attendance").select("id").eq("employee_id", empId).eq("date", today).single();
+    if (existing.data) { await supabase.from("attendance").update({ status }).eq("id", existing.data.id); }
+    else { await supabase.from("attendance").insert([{ employee_id: empId, date: today, status }]); }
+    load();
+  };
+
+  const statusColor = { present: C.green, absent: C.red, late: "#856404", on_leave: C.blue };
+  const statusBg = { present: C.greenLight, absent: C.redLight, late: C.yellowLight, on_leave: C.blueLight };
+
+  return (
+    <div>
+      <style>{`@keyframes nicPulse { 0% { box-shadow: 0 0 0 0 rgba(40,167,69,0.5); } 70% { box-shadow: 0 0 0 6px rgba(40,167,69,0); } 100% { box-shadow: 0 0 0 0 rgba(40,167,69,0); } }`}</style>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 8 }}>
+        <h2 style={{ margin: 0, color: C.primaryDark, fontSize: 18, fontWeight: 700 }}>{T.smart_attendance}</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.greenLight, color: C.green, padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: C.green, display: "inline-block", animation: "nicPulse 1.6s infinite" }} />
+            {T.live_status}
+          </div>
+          <button onClick={load} style={{ background: C.primaryBg, border: "1px solid " + C.primaryLight, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, color: C.primaryDark, fontFamily: "inherit" }}>🔄 {T.refresh}</button>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
+        <StatCard icon="✅" label={T.present} value={fmtNum(counts.present)} color={C.greenLight} />
+        <StatCard icon="❌" label={T.absent} value={fmtNum(counts.absent)} color={C.redLight} />
+        <StatCard icon="⏰" label={T.late} value={fmtNum(counts.late)} color={C.yellowLight} />
+        <StatCard icon="🌴" label={T.on_leave} value={fmtNum(counts.on_leave)} color={C.blueLight} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 16, marginBottom: 16 }}>
+        <Card>
+          <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>{T.department_wise_summary}</div>
+          <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+            <DonutChart segments={donutSegments} centerLabel={fmtNum(total)} centerSub={T.total} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[["present", T.present, C.green], ["absent", T.absent, C.red], ["late", T.late, "#E0A800"], ["on_leave", T.on_leave, C.blue]].map(([k, label, color]) => (
+                <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, display: "inline-block" }} />
+                  <span style={{ color: C.gray800, minWidth: 90 }}>{label}</span>
+                  <span style={{ fontWeight: 700, color: C.primaryDark }}>{fmtNum(counts[k])}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {depts.length > 0 && (
+            <div style={{ marginTop: 16, borderTop: "1px solid " + C.gray100, paddingTop: 12 }}>
+              {deptSummary.map(d => (
+                <div key={d.dept} style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.gray600, marginBottom: 4 }}>
+                    <span>{d.dept}</span><span>{fmtNum(d.present)}/{fmtNum(d.total)} {T.present}</span>
+                  </div>
+                  <ProgressBar value={d.total ? (d.present / d.total) * 100 : 0} color={C.primary} />
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>{T.recent_checkins}</div>
+          {loading ? (
+            <div style={{ color: C.gray400, textAlign: "center", padding: 20 }}>⏳</div>
+          ) : recentList.length === 0 ? (
+            <div style={{ color: C.gray400, textAlign: "center", padding: 20, fontSize: 13 }}>{T.no_records}</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 360, overflowY: "auto" }}>
+              {recentList.map(r => {
+                const emp = empById[r.employee_id];
+                const key = statusMap[r.status] || "present";
+                const time = r.created_at ? new Date(r.created_at).toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: "2-digit", minute: "2-digit" }) : "—";
+                return (
+                  <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, background: C.gray50 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.primaryBg, color: C.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                      {(emp?.name || "?")[0]}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: C.primaryDark, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emp?.name || "—"}</div>
+                      <div style={{ fontSize: 11, color: C.gray600 }}>{time}</div>
+                    </div>
+                    <span style={{ background: statusBg[key], color: statusColor[key], padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>{T[key]}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 15 }}>{T.quick_checkin} ({fmtNum(unmarked.length)} {T.not_marked})</div>
+          <input placeholder={T.search_employee} value={search} onChange={e => setSearch(e.target.value)} style={{ ...inputStyle, width: 220 }} />
+        </div>
+        {unmarked.length === 0 ? (
+          <div style={{ color: C.green, textAlign: "center", padding: 16, fontSize: 13, fontWeight: 600 }}>✅ {fmtNum(total)} {T.employees_label} — {T.present}</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 10 }}>
+            {unmarked.map(e => (
+              <div key={e.id} style={{ border: "1px solid " + C.gray200, borderRadius: 10, padding: 10, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.primaryBg, color: C.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 12, flexShrink: 0 }}>{(e.name || "?")[0]}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 12, color: C.primaryDark, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.name}</div>
+                  <div style={{ fontSize: 10, color: C.gray600 }}>{e.dept}</div>
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button onClick={() => quickMark(e.id, "present")} title={T.present} style={{ background: C.greenLight, color: C.green, border: "none", borderRadius: 6, width: 26, height: 26, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>✓</button>
+                  <button onClick={() => quickMark(e.id, "late")} title={T.late} style={{ background: C.yellowLight, color: "#856404", border: "none", borderRadius: 6, width: 26, height: 26, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>⏰</button>
+                  <button onClick={() => quickMark(e.id, "absent")} title={T.absent} style={{ background: C.redLight, color: C.red, border: "none", borderRadius: 6, width: 26, height: 26, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>✕</button>
+                  <button onClick={() => quickMark(e.id, "on_leave")} title={T.on_leave} style={{ background: C.blueLight, color: C.blue, border: "none", borderRadius: 6, width: 26, height: 26, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>🌴</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -2203,6 +2435,7 @@ const ALL_MENU = [
   { id: "clients", icon: "👥", label: "ক্লায়েন্ট", roles: ["admin"] },
   { id: "employees", icon: "👷", label: "কর্মী (HR)", roles: ["admin"] },
   { id: "attendance", icon: "📋", label: "উপস্থিতি", roles: ["admin"] },
+  { id: "smart_attendance", icon: "⏱️", label: "স্মার্ট অ্যাটেন্ডেন্স", roles: ["admin"] },
   { id: "finance", icon: "💰", label: "আর্থিক", roles: ["admin"] },
   { id: "site", icon: "📍", label: "সাইট প্রগ্রেস", roles: ["admin"] },
   { id: "materials", icon: "📦", label: "সামগ্রী", roles: ["admin"] },
@@ -3010,7 +3243,7 @@ export default function App() {
           {ALL_MENU.filter(m => m.roles.includes(currentUser?.role || "admin")).map(m => (
             <button key={m.id} onClick={() => setActive(m.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: sideOpen ? "10px 18px" : "10px 0", justifyContent: sideOpen ? "flex-start" : "center", background: active === m.id ? "rgba(255,255,255,0.12)" : "none", border: "none", borderLeft: active === m.id ? "3px solid " + C.primaryLight : "3px solid transparent", color: active === m.id ? C.white : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12, fontWeight: active === m.id ? 700 : 400, fontFamily: "inherit", transition: "all 0.15s" }}>
               <span style={{ fontSize: 16, flexShrink: 0 }}>{m.icon}</span>
-              {sideOpen && <span style={{ whiteSpace: "nowrap", fontSize: 13 }}>{m.label}</span>}
+              {sideOpen && <span style={{ whiteSpace: "nowrap", fontSize: 13 }}>{TXT[lang][m.id] || m.label}</span>}
             </button>
           ))}
         </nav>
@@ -3062,6 +3295,7 @@ export default function App() {
               {active === "clients" && isAdmin && <Clients data={data.clients} onRefresh={loadAll} />}
               {active === "employees" && isAdmin && <Employees data={data.employees} onRefresh={loadAll} />}
               {active === "attendance" && isAdmin && <Attendance employees={data.employees} />}
+              {active === "smart_attendance" && isAdmin && <SmartAttendance employees={data.employees} lang={lang} />}
               {active === "finance" && isAdmin && <Finance data={data.transactions} onRefresh={loadAll} />}
               {active === "site" && isAdmin && <SiteProgress data={data.siteProgress} projects={data.projects} onRefresh={loadAll} />}
               {active === "materials" && isAdmin && <Materials data={data.materials} onRefresh={loadAll} />}
