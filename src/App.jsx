@@ -1721,14 +1721,51 @@ function MyAttendance({ currentUser, lang }) {
 // ============================================================
 // PAYROLL / PAYSLIP
 // ============================================================
+function LineItemsEditor({ title, items, onChange, color }) {
+  const update = (i, field, val) => {
+    const next = items.slice();
+    next[i] = { ...next[i], [field]: val };
+    onChange(next);
+  };
+  const addRow = () => onChange([...items, { label: "", amount: 0, note: "" }]);
+  const removeRow = (i) => onChange(items.filter((_, idx) => idx !== i));
+  const subtotal = items.reduce((s, it) => s + (+it.amount || 0), 0);
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: color || C.primaryDark }}>{title}</div>
+        <button onClick={addRow} style={{ ...btnEdit, padding: "4px 10px", fontSize: 11 }}>➕ লাইন যোগ করুন</button>
+      </div>
+      <div style={{ border: "1px solid " + C.gray200, borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr 1.3fr 30px", gap: 0, background: C.primaryBg, padding: "6px 10px", fontSize: 11, fontWeight: 700, color: C.primaryDark }}>
+          <div>বিবরণ</div><div>পরিমাণ (৳)</div><div>নোট</div><div></div>
+        </div>
+        {items.length === 0 ? (
+          <div style={{ padding: 12, fontSize: 12, color: C.gray400, textAlign: "center" }}>কোনো লাইন নেই — "লাইন যোগ করুন" চাপুন</div>
+        ) : items.map((it, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr 1.3fr 30px", gap: 6, padding: "6px 10px", borderTop: "1px solid " + C.gray100, alignItems: "center" }}>
+            <input value={it.label} onChange={e => update(i, "label", e.target.value)} placeholder="বিবরণ" style={{ ...inputStyle, padding: "5px 8px", fontSize: 12 }} />
+            <input type="number" value={it.amount} onChange={e => update(i, "amount", e.target.value)} style={{ ...inputStyle, padding: "5px 8px", fontSize: 12 }} />
+            <input value={it.note || ""} onChange={e => update(i, "note", e.target.value)} placeholder="নোট" style={{ ...inputStyle, padding: "5px 8px", fontSize: 12 }} />
+            <button onClick={() => removeRow(i)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 14 }}>🗑️</button>
+          </div>
+        ))}
+        <div style={{ padding: "8px 10px", background: C.gray50, fontSize: 12, fontWeight: 700, textAlign: "right", color: C.primaryDark }}>সাবটোটাল: {fmt(subtotal)}</div>
+      </div>
+    </div>
+  );
+}
+
 function Payroll({ employees }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ allowances: 0, deductions: 0, disbursement_channel: "Bank", disbursement_date: "" });
+  const [form, setForm] = useState(null);
   const [printRow, setPrintRow] = useState(null);
   const [tab, setTab] = useState("list");
+  const uploadRef = useRef();
 
   const load = async () => {
     setLoading(true);
@@ -1739,22 +1776,43 @@ function Payroll({ employees }) {
   useEffect(() => { load(); }, [month]);
 
   const empById = {}; employees.forEach(e => { empById[e.id] = e; });
+  const subtotalOf = (items) => (items || []).reduce((s, it) => s + (+it.amount || 0), 0);
+  const netOf = (r) => subtotalOf(r.fixed_items) + subtotalOf(r.kpi_items) - ((+r.penalty_days || 0) * (+r.penalty_rate || 0));
 
   const generateRun = async () => {
     const existingIds = new Set(runs.map(r => r.employee_id));
     const toCreate = employees.filter(e => e.status === "কর্মরত" && !existingIds.has(e.id)).map(e => ({
-      employee_id: e.id, month, basic: e.salary || 0, allowances: 0, deductions: 0, net_pay: e.salary || 0, status: "Unpaid", disbursement_channel: "Bank",
+      employee_id: e.id, month, position: e.role,
+      fixed_items: [{ label: "Fixed Salary", amount: e.salary || 0, note: "মাসিক মূল বেতন" }],
+      kpi_items: [], penalty_days: 0, penalty_rate: 0,
+      net_pay: e.salary || 0, status: "Unpaid", disbursement_channel: "Bank",
     }));
     if (toCreate.length === 0) return alert("এই মাসের জন্য সব কর্মীর পে-রোল ইতিমধ্যে তৈরি আছে");
     await supabase.from("payroll_runs").insert(toCreate);
     load();
   };
 
-  const openEdit = (r) => { setEditItem(r); setForm({ allowances: r.allowances || 0, deductions: r.deductions || 0, disbursement_channel: r.disbursement_channel || "Bank", disbursement_date: r.disbursement_date || "" }); };
+  const openEdit = (r) => {
+    setEditItem(r);
+    setForm({
+      position: r.position || empById[r.employee_id]?.role || "",
+      fixed_items: r.fixed_items && r.fixed_items.length ? r.fixed_items : [{ label: "Fixed Salary", amount: r.basic || 0, note: "" }],
+      kpi_items: r.kpi_items || [],
+      penalty_days: r.penalty_days || 0,
+      penalty_rate: r.penalty_rate || 0,
+      disbursement_channel: r.disbursement_channel || "Bank",
+      disbursement_date: r.disbursement_date || "",
+    });
+  };
+
   const saveEdit = async () => {
-    const net = (editItem.basic || 0) + (+form.allowances || 0) - (+form.deductions || 0);
-    await supabase.from("payroll_runs").update({ allowances: +form.allowances || 0, deductions: +form.deductions || 0, net_pay: net, disbursement_channel: form.disbursement_channel, disbursement_date: form.disbursement_date || null }).eq("id", editItem.id);
-    setEditItem(null); load();
+    const net = subtotalOf(form.fixed_items) + subtotalOf(form.kpi_items) - ((+form.penalty_days || 0) * (+form.penalty_rate || 0));
+    await supabase.from("payroll_runs").update({
+      position: form.position, fixed_items: form.fixed_items, kpi_items: form.kpi_items,
+      penalty_days: +form.penalty_days || 0, penalty_rate: +form.penalty_rate || 0,
+      net_pay: net, disbursement_channel: form.disbursement_channel, disbursement_date: form.disbursement_date || null,
+    }).eq("id", editItem.id);
+    setEditItem(null); setForm(null); load();
   };
 
   const markPaid = async (r) => {
@@ -1771,25 +1829,60 @@ function Payroll({ employees }) {
 
   const doPrint = (r) => {
     setPrintRow(r);
-    setTimeout(() => printSection("পে-স্লিপ — " + (empById[r.employee_id]?.name || ""), "payslip-content"), 100);
+    setTimeout(() => printSection("Salary Sheet — " + (empById[r.employee_id]?.name || ""), "payslip-content"), 100);
   };
 
-  const totalNet = runs.reduce((s, r) => s + (r.net_pay || 0), 0);
-  const totalAllowances = runs.reduce((s, r) => s + (r.allowances || 0), 0);
-  const totalDeductions = runs.reduce((s, r) => s + (r.deductions || 0), 0);
-  const totalBasic = runs.reduce((s, r) => s + (r.basic || 0), 0);
+  const handleExport = () => exportToExcel(runs.map(r => ({
+    নাম: empById[r.employee_id]?.name, পদবি: r.position || empById[r.employee_id]?.role,
+    "Fixed সাবটোটাল": subtotalOf(r.fixed_items), "KPI সাবটোটাল": subtotalOf(r.kpi_items),
+    "পেনাল্টি দিন": r.penalty_days || 0, "পেনাল্টি হার": r.penalty_rate || 0,
+    "মোট পেনাল্টি": (r.penalty_days || 0) * (r.penalty_rate || 0),
+    "নীট প্রদেয়": netOf(r), চ্যানেল: r.disbursement_channel || "Bank", স্ট্যাটাস: r.status,
+  })), "Payroll", "Payroll_" + month);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const rows = await parseExcelFile(file);
+    let count = 0;
+    for (const row of rows) {
+      const emp = employees.find(em => em.name === (row["নাম"] || row["name"]));
+      if (!emp) continue;
+      const fixed_items = [
+        { label: "Fixed Salary", amount: +row["Fixed Salary"] || +row["মূল বেতন"] || emp.salary || 0, note: "মাসিক মূল বেতন" },
+        { label: "House Rent", amount: +row["House Rent"] || +row["বাড়ি ভাড়া"] || 0, note: "ঘর ভাড়া" },
+        { label: "Site Visit / Field Allowance", amount: +row["Site Visit Allowance"] || +row["সাইট ভাতা"] || 0, note: "সাইট পরিদর্শন ভাতা" },
+      ].filter(it => it.amount > 0);
+      const kpiAmt = +row["KPI Bonus"] || +row["কেপিআই বোনাস"] || 0;
+      const kpi_items = kpiAmt > 0 ? [{ label: "Overall Project Delivery KPI Bonus", amount: kpiAmt, note: "" }] : [];
+      const penalty_days = +row["Penalty Days"] || +row["পেনাল্টি দিন"] || 0;
+      const penalty_rate = +row["Penalty Rate"] || +row["পেনাল্টি হার"] || 0;
+      const net_pay = subtotalOf(fixed_items) + subtotalOf(kpi_items) - (penalty_days * penalty_rate);
+
+      const existing = runs.find(r => r.employee_id === emp.id);
+      const payload = { employee_id: emp.id, month, position: emp.role, fixed_items, kpi_items, penalty_days, penalty_rate, net_pay, status: existing?.status || "Unpaid", disbursement_channel: existing?.disbursement_channel || "Bank" };
+      if (existing) await supabase.from("payroll_runs").update(payload).eq("id", existing.id);
+      else await supabase.from("payroll_runs").insert([payload]);
+      count++;
+    }
+    alert("✅ " + count + " জনের পে-রোল আপলোড/আপডেট হয়েছে!");
+    e.target.value = ""; load();
+  };
+
+  const totalNet = runs.reduce((s, r) => s + netOf(r), 0);
+  const totalFixed = runs.reduce((s, r) => s + subtotalOf(r.fixed_items), 0);
+  const totalKpi = runs.reduce((s, r) => s + subtotalOf(r.kpi_items), 0);
+  const totalPenalty = runs.reduce((s, r) => s + ((r.penalty_days || 0) * (r.penalty_rate || 0)), 0);
   const paidCount = runs.filter(r => r.status === "Paid").length;
 
   const channelGroups = DISBURSEMENT_CHANNELS.map(ch => {
     const items = runs.filter(r => (r.disbursement_channel || "Bank") === ch.id);
-    return { ...ch, count: items.length, totalDeduction: items.reduce((s, r) => s + (r.deductions || 0), 0), totalNet: items.reduce((s, r) => s + (r.net_pay || 0), 0), date: items[0]?.disbursement_date || "" };
+    return { ...ch, count: items.length, totalDeduction: items.reduce((s, r) => s + ((r.penalty_days || 0) * (r.penalty_rate || 0)), 0), totalNet: items.reduce((s, r) => s + netOf(r), 0), date: items[0]?.disbursement_date || "" };
   }).filter(g => g.count > 0);
-
   const channelDonut = channelGroups.map(g => ({ value: g.count, color: g.color }));
   const earningsDonut = [
-    { value: totalBasic, color: C.primary },
-    { value: totalAllowances, color: C.green },
-    { value: totalDeductions, color: C.red },
+    { value: totalFixed, color: C.primary },
+    { value: totalKpi, color: C.green },
+    { value: totalPenalty, color: C.red },
   ];
 
   return (
@@ -1805,7 +1898,12 @@ function Payroll({ employees }) {
           <div style={{ fontWeight: 600, color: C.gray800, fontSize: 14 }}>মাস:</div>
           <input type="month" value={month} onChange={e => setMonth(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
         </div>
-        <button onClick={generateRun} style={{ ...btnPrimary, width: "auto", margin: 0 }}>⚙️ এই মাসের পে-রোল তৈরি করুন</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={generateRun} style={{ ...btnPrimary, width: "auto", margin: 0 }}>⚙️ এই মাসের পে-রোল তৈরি করুন</button>
+          <button onClick={handleExport} style={btnEdit}>⬇️ Excel Download</button>
+          <button onClick={() => uploadRef.current?.click()} style={btnEdit}>⬆️ Excel Upload</button>
+          <input type="file" ref={uploadRef} onChange={handleUpload} accept=".xlsx,.xls,.csv" style={{ display: "none" }} />
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
@@ -1817,31 +1915,34 @@ function Payroll({ employees }) {
       {tab === "list" && (
         <Card>
           {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : runs.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>এই মাসের জন্য এখনো পে-রোল তৈরি হয়নি। উপরের বাটনে ক্লিক করুন।</div>
+            <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>এই মাসের জন্য এখনো পে-রোল তৈরি হয়নি। উপরের বাটনে ক্লিক করুন অথবা Excel Upload করুন।</div>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "মূল বেতন", "ভাতা", "কর্তন", "নীট প্রদেয়", "চ্যানেল", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
-              <tbody>
-                {runs.map(r => (
-                  <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
-                    <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{empById[r.employee_id]?.name || "—"}</td>
-                    <td style={{ padding: "10px 14px" }}>{fmt(r.basic)}</td>
-                    <td style={{ padding: "10px 14px", color: C.green }}>+{fmt(r.allowances)}</td>
-                    <td style={{ padding: "10px 14px", color: C.red }}>-{fmt(r.deductions)}</td>
-                    <td style={{ padding: "10px 14px", fontWeight: 700, color: C.primaryDark }}>{fmt(r.net_pay)}</td>
-                    <td style={{ padding: "10px 14px" }}><Badge label={DISBURSEMENT_CHANNELS.find(c => c.id === (r.disbursement_channel || "Bank"))?.label} color="primary" /></td>
-                    <td style={{ padding: "10px 14px" }}><Badge label={r.status === "Paid" ? "✅ Paid" : "⏳ Unpaid"} color={r.status === "Paid" ? "green" : "yellow"} /></td>
-                    <td style={{ padding: "10px 14px" }}>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button onClick={() => openEdit(r)} style={btnEdit}>✏️</button>
-                        <button onClick={() => doPrint(r)} style={btnEdit}>🖨️</button>
-                        {r.status !== "Paid" && <button onClick={() => markPaid(r)} style={{ ...btnEdit, background: C.greenLight, color: C.green }}>✓ Paid</button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "পদবি", "Fixed", "KPI", "পেনাল্টি", "নীট প্রদেয়", "চ্যানেল", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {runs.map(r => (
+                    <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                      <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{empById[r.employee_id]?.name || "—"}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600 }}>{r.position || empById[r.employee_id]?.role}</td>
+                      <td style={{ padding: "10px 14px", color: C.green }}>{fmt(subtotalOf(r.fixed_items))}</td>
+                      <td style={{ padding: "10px 14px", color: C.green }}>{fmt(subtotalOf(r.kpi_items))}</td>
+                      <td style={{ padding: "10px 14px", color: C.red }}>-{fmt((r.penalty_days || 0) * (r.penalty_rate || 0))}</td>
+                      <td style={{ padding: "10px 14px", fontWeight: 700, color: C.primaryDark }}>{fmt(netOf(r))}</td>
+                      <td style={{ padding: "10px 14px" }}><Badge label={DISBURSEMENT_CHANNELS.find(c => c.id === (r.disbursement_channel || "Bank"))?.label} color="primary" /></td>
+                      <td style={{ padding: "10px 14px" }}><Badge label={r.status === "Paid" ? "✅ Paid" : "⏳ Unpaid"} color={r.status === "Paid" ? "green" : "yellow"} /></td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button onClick={() => openEdit(r)} style={btnEdit}>✏️</button>
+                          <button onClick={() => doPrint(r)} style={btnEdit}>🖨️</button>
+                          {r.status !== "Paid" && <button onClick={() => markPaid(r)} style={{ ...btnEdit, background: C.greenLight, color: C.green }}>✓ Paid</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
       )}
@@ -1857,7 +1958,7 @@ function Payroll({ employees }) {
                 <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 14 }}>{g.label}</div>
               </div>
               <ProfileField label="মোট কর্মী" value={fmtNum(g.count) + " জন"} />
-              <ProfileField label="মোট কর্তন" value={fmt(g.totalDeduction)} />
+              <ProfileField label="মোট পেনাল্টি/কর্তন" value={fmt(g.totalDeduction)} />
               <ProfileField label="মোট নীট প্রদেয়" value={fmt(g.totalNet)} />
               <FormField label="বিতরণের তারিখ">
                 <input type="date" style={inputStyle} value={g.date || ""} onChange={e => setChannelDate(g.id, e.target.value)} />
@@ -1892,9 +1993,9 @@ function Payroll({ employees }) {
               <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
                 <DonutChart segments={earningsDonut} centerLabel={fmt(totalNet)} centerSub="নীট বেতন" />
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: C.primary, display: "inline-block" }} /><span style={{ color: C.gray800, minWidth: 90 }}>মূল বেতন</span><span style={{ fontWeight: 700, color: C.primaryDark }}>{fmt(totalBasic)}</span></div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: C.green, display: "inline-block" }} /><span style={{ color: C.gray800, minWidth: 90 }}>ভাতা</span><span style={{ fontWeight: 700, color: C.primaryDark }}>{fmt(totalAllowances)}</span></div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: C.red, display: "inline-block" }} /><span style={{ color: C.gray800, minWidth: 90 }}>কর্তন</span><span style={{ fontWeight: 700, color: C.primaryDark }}>{fmt(totalDeductions)}</span></div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: C.primary, display: "inline-block" }} /><span style={{ color: C.gray800, minWidth: 90 }}>Fixed Part</span><span style={{ fontWeight: 700, color: C.primaryDark }}>{fmt(totalFixed)}</span></div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: C.green, display: "inline-block" }} /><span style={{ color: C.gray800, minWidth: 90 }}>KPI Part</span><span style={{ fontWeight: 700, color: C.primaryDark }}>{fmt(totalKpi)}</span></div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: C.red, display: "inline-block" }} /><span style={{ color: C.gray800, minWidth: 90 }}>পেনাল্টি</span><span style={{ fontWeight: 700, color: C.primaryDark }}>{fmt(totalPenalty)}</span></div>
                 </div>
               </div>
             )}
@@ -1902,40 +2003,79 @@ function Payroll({ employees }) {
         </div>
       )}
 
-      {editItem && (
-        <Modal title="পে-রোল সম্পাদনা" onClose={() => setEditItem(null)}>
-          <FormField label="মূল বেতন"><input style={inputStyle} value={fmt(editItem.basic)} disabled /></FormField>
-          <FormField label="ভাতা (Allowances)"><input type="number" style={inputStyle} value={form.allowances} onChange={e => setForm({ ...form, allowances: e.target.value })} /></FormField>
-          <FormField label="কর্তন (Deductions)"><input type="number" style={inputStyle} value={form.deductions} onChange={e => setForm({ ...form, deductions: e.target.value })} /></FormField>
-          <FormField label="বিতরণ চ্যানেল">
-            <select style={inputStyle} value={form.disbursement_channel} onChange={e => setForm({ ...form, disbursement_channel: e.target.value })}>
-              {DISBURSEMENT_CHANNELS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-            </select>
-          </FormField>
-          <FormField label="বিতরণের তারিখ"><input type="date" style={inputStyle} value={form.disbursement_date} onChange={e => setForm({ ...form, disbursement_date: e.target.value })} /></FormField>
-          <div style={{ fontSize: 13, color: C.gray600, marginBottom: 14 }}>নীট প্রদেয়: <strong style={{ color: C.primaryDark }}>{fmt((editItem.basic || 0) + (+form.allowances || 0) - (+form.deductions || 0))}</strong></div>
+      {editItem && form && (
+        <Modal title={"পে-রোল সম্পাদনা — " + (empById[editItem.employee_id]?.name || "")} onClose={() => { setEditItem(null); setForm(null); }} size={620}>
+          <FormField label="পদবি (Position For)"><input style={inputStyle} value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} /></FormField>
+
+          <LineItemsEditor title="Fixed Part" items={form.fixed_items} onChange={items => setForm({ ...form, fixed_items: items })} color={C.primary} />
+          <LineItemsEditor title="KPI Part" items={form.kpi_items} onChange={items => setForm({ ...form, kpi_items: items })} color={C.green} />
+
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.red, marginBottom: 8 }}>Penalty (ধারা ১২.১ অনুযায়ী)</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 8 }}>
+            <FormField label="পেনাল্টি প্রয়োজ্য দিন সংখ্যা"><input type="number" style={inputStyle} value={form.penalty_days} onChange={e => setForm({ ...form, penalty_days: e.target.value })} /></FormField>
+            <FormField label="প্রতিদিন পেনাল্টি হার (৳)"><input type="number" style={inputStyle} value={form.penalty_rate} onChange={e => setForm({ ...form, penalty_rate: e.target.value })} /></FormField>
+          </div>
+          <div style={{ fontSize: 12, color: C.red, marginBottom: 16 }}>মোট পেনাল্টি কর্তন: {fmt((+form.penalty_days || 0) * (+form.penalty_rate || 0))}</div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 8 }}>
+            <FormField label="বিতরণ চ্যানেল">
+              <select style={inputStyle} value={form.disbursement_channel} onChange={e => setForm({ ...form, disbursement_channel: e.target.value })}>
+                {DISBURSEMENT_CHANNELS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </FormField>
+            <FormField label="বিতরণের তারিখ"><input type="date" style={inputStyle} value={form.disbursement_date} onChange={e => setForm({ ...form, disbursement_date: e.target.value })} /></FormField>
+          </div>
+
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.primaryDark, marginBottom: 14, padding: "10px 14px", background: C.primaryBg, borderRadius: 8 }}>
+            মোট প্রদেয় (Net Payable): {fmt(subtotalOf(form.fixed_items) + subtotalOf(form.kpi_items) - ((+form.penalty_days || 0) * (+form.penalty_rate || 0)))}
+          </div>
           <button onClick={saveEdit} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
         </Modal>
       )}
 
-      {/* Hidden payslip content for printing */}
+      {/* Hidden payslip content for printing — matches Salary Sheet layout */}
       <div style={{ display: "none" }}>
         <div id="payslip-content">
           {printRow && (
             <div>
-              <table style={{ marginBottom: 14 }}>
+              <table style={{ marginBottom: 10 }}>
                 <tbody>
-                  <tr><td style={{ fontWeight: 700 }}>কর্মীর নাম</td><td>{empById[printRow.employee_id]?.name}</td><td style={{ fontWeight: 700 }}>পদবি</td><td>{empById[printRow.employee_id]?.role}</td></tr>
-                  <tr><td style={{ fontWeight: 700 }}>বিভাগ</td><td>{empById[printRow.employee_id]?.dept}</td><td style={{ fontWeight: 700 }}>মাস</td><td>{printRow.month}</td></tr>
+                  <tr><td style={{ fontWeight: 700, width: "25%" }}>Position For:</td><td colSpan={3}>{printRow.position || empById[printRow.employee_id]?.role}</td></tr>
+                  <tr><td style={{ fontWeight: 700 }}>কর্মচারীর নাম:</td><td>{empById[printRow.employee_id]?.name}</td><td style={{ fontWeight: 700 }}>মাস/বছর:</td><td>{printRow.month}</td></tr>
                 </tbody>
               </table>
-              <table>
-                <thead><tr><th>বিবরণ</th><th>পরিমাণ (৳)</th></tr></thead>
+
+              <div style={{ fontWeight: 700, margin: "10px 0 4px" }}>Fixed Part</div>
+              <table style={{ marginBottom: 10 }}>
+                <thead><tr><th>বিবরণ</th><th>পরিমাণ (৳)</th><th>নোট</th></tr></thead>
                 <tbody>
-                  <tr><td>মূল বেতন (Basic)</td><td>{fmt(printRow.basic)}</td></tr>
-                  <tr><td>ভাতা (Allowances)</td><td>{fmt(printRow.allowances)}</td></tr>
-                  <tr><td>কর্তন (Deductions)</td><td>-{fmt(printRow.deductions)}</td></tr>
-                  <tr><td style={{ fontWeight: 700 }}>নীট প্রদেয়</td><td style={{ fontWeight: 700 }}>{fmt(printRow.net_pay)}</td></tr>
+                  {(printRow.fixed_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td>{fmt(it.amount)}</td><td>{it.note}</td></tr>)}
+                  <tr><td style={{ fontWeight: 700 }}>Fixed Part সাবটোটাল</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.fixed_items))}</td><td></td></tr>
+                </tbody>
+              </table>
+
+              <div style={{ fontWeight: 700, margin: "10px 0 4px" }}>KPI Part</div>
+              <table style={{ marginBottom: 10 }}>
+                <thead><tr><th>বিবরণ</th><th>পরিমাণ (৳)</th><th>নোট</th></tr></thead>
+                <tbody>
+                  {(printRow.kpi_items || []).length === 0 ? <tr><td colSpan={3}>—</td></tr> : (printRow.kpi_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td>{fmt(it.amount)}</td><td>{it.note}</td></tr>)}
+                  <tr><td style={{ fontWeight: 700 }}>KPI Part সাবটোটাল</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.kpi_items))}</td><td></td></tr>
+                </tbody>
+              </table>
+
+              <div style={{ fontWeight: 700, margin: "10px 0 4px" }}>Penalty (ধারা ১২.১ অনুযায়ী)</div>
+              <table style={{ marginBottom: 10 }}>
+                <thead><tr><th>বিবরণ</th><th>পরিমাণ</th><th>নোট</th></tr></thead>
+                <tbody>
+                  <tr><td>পেনাল্টি প্রযোজ্য দিন সংখ্যা</td><td>{fmtNum(printRow.penalty_days || 0)}</td><td>সংখ্যা</td></tr>
+                  <tr><td>প্রতিদিন পেনাল্টি হার (৳)</td><td>{fmt(printRow.penalty_rate || 0)}</td><td>ব্যবস্থাপনার সিদ্ধান্তে</td></tr>
+                  <tr><td style={{ fontWeight: 700 }}>মোট পেনাল্টি কর্তন</td><td style={{ fontWeight: 700 }}>{fmt((printRow.penalty_days || 0) * (printRow.penalty_rate || 0))}</td><td></td></tr>
+                </tbody>
+              </table>
+
+              <table>
+                <tbody>
+                  <tr><td style={{ fontWeight: 700, fontSize: "11pt" }}>মোট প্রদেয় (Net Payable)</td><td style={{ fontWeight: 700, fontSize: "11pt", color: "#2e7d32" }}>{fmt(netOf(printRow))}</td></tr>
                   <tr><td>বিতরণ চ্যানেল</td><td>{DISBURSEMENT_CHANNELS.find(c => c.id === (printRow.disbursement_channel || "Bank"))?.label}</td></tr>
                   <tr><td>স্ট্যাটাস</td><td>{printRow.status === "Paid" ? "পরিশোধিত" : "অপরিশোধিত"}</td></tr>
                 </tbody>
