@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 const SUPABASE_URL = "https://jijxnycopycsysugppnw.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppanhueWNvcHljc3lzdWdwcG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MDAyNTAsImV4cCI6MjA5ODI3NjI1MH0.7kXRGGnW4VdWU9VT1XEBKp5oC9V5Z21KA_PBqZtvjJA";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const NOKSHA_ICON_B64 = "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";
+const NOKSHA_ICON_URL = "https://jijxnycopycsysugppnw.supabase.co/storage/v1/object/public/Upload%20images/icon.png";
 
 
 // ============================================================
@@ -161,7 +161,7 @@ const printSection = async (title, contentId) => {
         Cell: +88 01619-677070 &nbsp; E-mail: noksha.ltd@gmail.com
       </div>
       <div class="pad-right">
-        ${logoB64 ? \`<img src="\${logoB64}" class="pad-logo-img" alt="NOKSHA" />\` : \`<div style="font-size:18pt;font-weight:900;color:#3F5F45;letter-spacing:2px;">NOKSHA<div style="font-size:7pt;letter-spacing:3px;color:#6B8F6B;">INTERIOR &amp; CONSTRUCTION</div></div>\`}
+        <img src="${logoB64}" style="height:55px;width:auto;object-fit:contain" alt="NOKSHA" />
       </div>
     </div>
     <div class="doc-title">${title}</div>
@@ -180,7 +180,7 @@ const printSection = async (title, contentId) => {
     (We provide all kind of Building Design, 3D View, Exterior/Interior 3D Visualization, Structural Design, Electrical Design, Plumbing Design, Pouroshova/Rajuk Sheet, Estimating &amp; Costing, Building Construction &amp; Supervision)
   </div>
   <script>setTimeout(() => { window.print(); }, 800 );<\/script>
-  </body></html>\`);
+  </body></html>`);
   win.document.close();
 };
 
@@ -194,7 +194,7 @@ const exportToExcel = (data, sheetName, fileName) => {
   const ws = XLSX.utils.json_to_sheet(data);
   ws["!cols"] = Object.keys(data[0]).map(() => ({ wch: 22 }));
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  XLSX.writeFile(wb, `NIC_${fileName}_${new Date().toISOString().split("T")[0]}.xlsx`);
+  XLSX.writeFile(wb, "NIC_" + fileName + "_" + new Date().toISOString().split("T")[0] + ".xlsx");
 };
 
 // ============================================================
@@ -239,7 +239,7 @@ function ImageUploadField({ label, value, onChange, folder }) {
     <div style={{ marginBottom: 14 }}>
       <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.gray800, marginBottom: 5 }}>{label}</label>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <label style={{ background: C.primaryBg, color: C.primaryDark, border: `1px solid ${C.primaryLight}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontWeight: 600, fontSize: 12, fontFamily: "inherit", flexShrink: 0 }}>
+        <label style={{ background: C.primaryBg, color: C.primaryDark, border: "1px solid " + C.primaryLight, borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontWeight: 600, fontSize: 12, fontFamily: "inherit", flexShrink: 0 }}>
           {uploading ? "⏳ আপলোড হচ্ছে..." : "📷 ছবি বেছে নিন"}
           <input type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} disabled={uploading} />
         </label>
@@ -247,7 +247,7 @@ function ImageUploadField({ label, value, onChange, folder }) {
       </div>
       {value && (
         <div style={{ marginTop: 8, position: "relative", display: "inline-block" }}>
-          <img src={value} alt="Preview" style={{ maxWidth: 200, maxHeight: 120, borderRadius: 8, border: `1px solid ${C.gray200}`, objectFit: "cover" }} />
+          <img src={value} alt="Preview" style={{ maxWidth: 200, maxHeight: 120, borderRadius: 8, border: "1px solid " + C.gray200, objectFit: "cover" }} />
           <button onClick={() => onChange("")} style={{ position: "absolute", top: -8, right: -8, background: C.red, color: C.white, border: "none", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
         </div>
       )}
@@ -277,7 +277,7 @@ function StatusBadge({ status }) {
 }
 
 function Card({ children, style }) {
-  return <div style={{ background: C.white, borderRadius: 12, padding: 20, boxShadow: "0 2px 12px rgba(63,95,69,0.08)", border: `1px solid ${C.gray200}`, ...style }}>{children}</div>;
+  return <div style={{ background: C.white, borderRadius: 12, padding: 20, boxShadow: "0 2px 12px rgba(63,95,69,0.08)", border: "1px solid " + C.gray200, ...style }}>{children}</div>;
 }
 
 function StatCard({ icon, label, value, sub, color }) {
@@ -294,7 +294,7 @@ function StatCard({ icon, label, value, sub, color }) {
 }
 
 function ProgressBar({ value, color }) {
-  return <div style={{ background: C.gray200, borderRadius: 99, height: 8, overflow: "hidden" }}><div style={{ width: `${Math.min(value, 100)}%`, height: "100%", background: color || C.primary, borderRadius: 99, transition: "width 0.5s" }} /></div>;
+  return <div style={{ background: C.gray200, borderRadius: 99, height: 8, overflow: "hidden" }}><div style={{ width: (Math.min(value, 100)) + "%", height: "100%", background: color || C.primary, borderRadius: 99, transition: "width 0.5s" }} /></div>;
 }
 
 function SectionHeader({ title, action, onAction, onPrint, onExport, onUpload, uploadRef }) {
@@ -318,7 +318,7 @@ function Modal({ title, onClose, children, size }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: size || 520, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", borderBottom: `2px solid ${C.primary}`, position: "sticky", top: 0, background: C.white, zIndex: 1 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", borderBottom: "2px solid " + C.primary, position: "sticky", top: 0, background: C.white, zIndex: 1 }}>
           <h3 style={{ margin: 0, color: C.primaryDark, fontSize: 16, fontWeight: 700 }}>{title}</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: C.gray600 }}>×</button>
         </div>
@@ -332,10 +332,10 @@ function FormField({ label, children }) {
   return <div style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.gray800, marginBottom: 5 }}>{label}</label>{children}</div>;
 }
 
-const inputStyle = { width: "100%", padding: "9px 12px", border: `1px solid ${C.gray200}`, borderRadius: 8, fontSize: 13, color: C.gray800, outline: "none", boxSizing: "border-box", fontFamily: "inherit", transition: "border 0.2s" };
+const inputStyle = { width: "100%", padding: "9px 12px", border: "1px solid " + C.gray200, borderRadius: 8, fontSize: 13, color: C.gray800, outline: "none", boxSizing: "border-box", fontFamily: "inherit", transition: "border 0.2s" };
 const btnPrimary = { background: C.primary, color: C.white, border: "none", borderRadius: 10, padding: "11px", fontWeight: 700, cursor: "pointer", fontSize: 14, fontFamily: "inherit", width: "100%", marginTop: 8 };
 const btnDanger = { background: C.red, color: C.white, border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 600, cursor: "pointer", fontSize: 12, fontFamily: "inherit" };
-const btnEdit = { background: C.primaryBg, color: C.primaryDark, border: `1px solid ${C.primaryLight}`, borderRadius: 8, padding: "5px 10px", fontWeight: 600, cursor: "pointer", fontSize: 12, fontFamily: "inherit" };
+const btnEdit = { background: C.primaryBg, color: C.primaryDark, border: "1px solid " + C.primaryLight, borderRadius: 8, padding: "5px 10px", fontWeight: 600, cursor: "pointer", fontSize: 12, fontFamily: "inherit" };
 
 // ============================================================
 // LOGIN
@@ -370,7 +370,7 @@ function LoginPage({ onLogin }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: `linear-gradient(135deg, ${C.primaryDark} 0%, ${C.primary} 60%, ${C.primaryLight} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, " + C.primaryDark + " 0%, " + C.primary + " 60%, " + C.primaryLight + " 100%)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: C.white, borderRadius: 20, padding: 40, width: "100%", maxWidth: 400, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <img src="https://jijxnycopycsysugppnw.supabase.co/storage/v1/object/public/Upload%20images/icon.png" alt="Noksha" style={{ width: 80, height: 80, objectFit: "contain", margin: "0 auto 16px", display: "block" }} />
@@ -418,9 +418,9 @@ function Analytics({ transactions, projects, employees }) {
         <StatCard icon="💰" label="মোট আয়" value={fmt(income)} color="#E8F5E9" />
         <StatCard icon="💸" label="মোট ব্যয়" value={fmt(expense)} color="#FFEBEE" />
         <StatCard icon="📈" label="নিট লাভ" value={fmt(profit)} color={profit >= 0 ? "#E8F5E9" : "#FFEBEE"} />
-        <StatCard icon="📊" label="লাভের হার" value={`${profitPct}%`} color={C.primaryBg} />
+        <StatCard icon="📊" label="লাভের হার" value={profitPct + "%"} color={C.primaryBg} />
         <StatCard icon="👷" label="মাসিক বেতন" value={fmt(salaryBill)} color="#FFF8E1" />
-        <StatCard icon="🏗️" label="সম্পন্ন প্রজেক্ট" value={fmtNum(completed)} sub={`${active}টি চলমান`} color={C.primaryBg} />
+        <StatCard icon="🏗️" label="সম্পন্ন প্রজেক্ট" value={fmtNum(completed)} sub={active + "টি চলমান"} color={C.primaryBg} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
@@ -471,7 +471,7 @@ function Analytics({ transactions, projects, employees }) {
               <span style={{ fontSize: 12, fontWeight: 700, color: C.primaryDark }}>{fmt(val)}</span>
             </div>
             <div style={{ background: C.gray100, borderRadius: 99, height: 8, overflow: "hidden" }}>
-              <div style={{ width: `${Math.round((val / maxCat) * 100)}%`, height: "100%", background: barColors[i % barColors.length], borderRadius: 99 }} />
+              <div style={{ width: Math.round((val / maxCat) * 100) + "%", height: "100%", background: barColors[i % barColors.length], borderRadius: 99 }} />
             </div>
           </div>
         ))}
@@ -560,7 +560,7 @@ function Projects({ data, onRefresh }) {
       await supabase.from("projects").upsert([{ name: row["নাম"], client: row["ক্লায়েন্ট"] || "", budget: +row["বাজেট"] || 0, spent: +row["খরচ"] || 0, progress: parseInt(row["অগ্রগতি"]) || 0, status: row["স্ট্যাটাস"] || "নতুন", location: row["অবস্থান"] || "", type: row["ধরন"] || "আবাসিক নির্মাণ" }]);
       count++;
     }
-    alert(`✅ ${count}টি প্রজেক্ট আপলোড হয়েছে!`);
+    alert("✅ " + count + "টি প্রজেক্ট আপলোড হয়েছে!");
     onRefresh(); e.target.value = "";
   };
 
@@ -584,7 +584,7 @@ function Projects({ data, onRefresh }) {
               <span style={{ fontSize: 12, fontWeight: 700, color: C.primary }}>{p.progress}%</span>
             </div>
             <ProgressBar value={p.progress} color={p.progress === 100 ? C.green : C.primary} />
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.gray100}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, paddingTop: 12, borderTop: "1px solid " + C.gray100 }}>
               <div><div style={{ fontSize: 11, color: C.gray400 }}>বাজেট</div><div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 13 }}>{fmt(p.budget)}</div></div>
               <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: C.gray400 }}>খরচ</div><div style={{ fontWeight: 700, color: C.green, fontSize: 13 }}>{fmt(p.spent)}</div></div>
             </div>
@@ -661,7 +661,7 @@ function Clients({ data, onRefresh }) {
       await supabase.from("clients").insert([{ name: row["নাম"], phone: row["ফোন"] || "", email: row["ইমেইল"] || "", address: row["ঠিকানা"] || "", status: row["স্ট্যাটাস"] || "সক্রিয়", join_date: new Date().toISOString().split("T")[0] }]);
       count++;
     }
-    alert(`✅ ${count}টি ক্লায়েন্ট আপলোড হয়েছে!`); onRefresh(); e.target.value = "";
+    alert("✅ " + count + "টি ক্লায়েন্ট আপলোড হয়েছে!"); onRefresh(); e.target.value = "";
   };
 
   return (
@@ -670,10 +670,10 @@ function Clients({ data, onRefresh }) {
       <Card>
         <div id="clients-content" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["নাম", "ফোন", "ইমেইল", "ঠিকানা", "স্ট্যাটাস", "যোগদান", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["নাম", "ফোন", "ইমেইল", "ঠিকানা", "স্ট্যাটাস", "যোগদান", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}</tr></thead>
             <tbody>
               {data.map(c => (
-                <tr key={c.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <tr key={c.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "10px 14px" }}><strong style={{ color: C.primaryDark }}>{c.name}</strong></td>
                   <td style={{ padding: "10px 14px" }}>{c.phone}</td>
                   <td style={{ padding: "10px 14px" }}>{c.email || "—"}</td>
@@ -738,7 +738,7 @@ function Employees({ data, onRefresh }) {
       await supabase.from("employees").insert([{ name: row["নাম"], role: row["পদবি"] || "", dept: row["বিভাগ"] || "ডিজাইন", phone: row["ফোন"] || "", salary: +row["বেতন"] || 0, join_date: row["যোগদান"] || "", status: row["স্ট্যাটাস"] || "কর্মরত" }]);
       count++;
     }
-    alert(`✅ ${count}জন কর্মী আপলোড হয়েছে!`); onRefresh(); e.target.value = "";
+    alert("✅ " + count + "জন কর্মী আপলোড হয়েছে!"); onRefresh(); e.target.value = "";
   };
 
   return (
@@ -752,10 +752,10 @@ function Employees({ data, onRefresh }) {
       <Card>
         <div id="employees-content" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["নাম", "পদবি", "বিভাগ", "ফোন", "বেতন", "যোগদান", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["নাম", "পদবি", "বিভাগ", "ফোন", "বেতন", "যোগদান", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}</tr></thead>
             <tbody>
               {data.map(e => (
-                <tr key={e.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={ev => ev.currentTarget.style.background = C.primaryBg} onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}>
+                <tr key={e.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={ev => ev.currentTarget.style.background = C.primaryBg} onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "10px 14px" }}><strong style={{ color: C.primaryDark }}>{e.name}</strong></td>
                   <td style={{ padding: "10px 14px" }}>{e.role}</td>
                   <td style={{ padding: "10px 14px" }}><Badge label={e.dept} color="primary" /></td>
@@ -833,7 +833,7 @@ function Attendance({ employees }) {
 
   const statuses = ["উপস্থিত", "অনুপস্থিত", "অর্ধদিন", "ছুটি"];
   const counts = statuses.map(s => ({ s, n: Object.values(attData).filter(v => v === s).length }));
-  const handlePrint = () => printSection(`উপস্থিতি — ${selDate}`, "attendance-content");
+  const handlePrint = () => printSection("উপস্থিতি — " + selDate, "attendance-content");
   const handleExport = () => exportToExcel(employees.map(e => ({ নাম: e.name, পদবি: e.role, তারিখ: selDate, উপস্থিতি: attData[e.id] || "চিহ্নিত নয়" })), "Attendance", "Attendance");
 
   return (
@@ -855,18 +855,18 @@ function Attendance({ employees }) {
         <div id="attendance-content" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead><tr style={{ background: C.primaryBg }}>
-              <th style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>কর্মীর নাম</th>
-              <th style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>পদবি</th>
-              {statuses.map(s => <th key={s} style={{ padding: "10px 14px", textAlign: "center", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>{s}</th>)}
+              <th style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>কর্মীর নাম</th>
+              <th style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>পদবি</th>
+              {statuses.map(s => <th key={s} style={{ padding: "10px 14px", textAlign: "center", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{s}</th>)}
             </tr></thead>
             <tbody>
               {employees.map(e => (
-                <tr key={e.id} style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                <tr key={e.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
                   <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{e.name}</td>
                   <td style={{ padding: "10px 14px", color: C.gray600, fontSize: 12 }}>{e.role}</td>
                   {statuses.map(s => (
                     <td key={s} style={{ padding: "6px 14px", textAlign: "center" }}>
-                      <input type="radio" name={`att-${e.id}`} checked={attData[e.id] === s} onChange={() => setAtt(e.id, s)} style={{ accentColor: s === "উপস্থিত" ? C.green : s === "অনুপস্থিত" ? C.red : C.primary, width: 16, height: 16, cursor: "pointer" }} />
+                      <input type="radio" name={"att-" + e.id} checked={attData[e.id] === s} onChange={() => setAtt(e.id, s)} style={{ accentColor: s === "উপস্থিত" ? C.green : s === "অনুপস্থিত" ? C.red : C.primary, width: 16, height: 16, cursor: "pointer" }} />
                     </td>
                   ))}
                 </tr>
@@ -918,7 +918,7 @@ function Finance({ data, onRefresh }) {
       await supabase.from("transactions").insert([{ date: row["তারিখ"] || new Date().toISOString().split("T")[0], type: row["ধরন"] || "আয়", category: row["বিভাগ"] || "বিবিধ", description: row["বিবরণ"], amount: +row["পরিমাণ"] || 0, project: row["প্রজেক্ট"] || "—" }]);
       count++;
     }
-    alert(`✅ ${count}টি লেনদেন আপলোড হয়েছে!`); onRefresh(); e.target.value = "";
+    alert("✅ " + count + "টি লেনদেন আপলোড হয়েছে!"); onRefresh(); e.target.value = "";
   };
 
   return (
@@ -932,10 +932,10 @@ function Finance({ data, onRefresh }) {
       <Card>
         <div id="finance-content" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ধরন", "বিভাগ", "বিবরণ", "পরিমাণ", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ধরন", "বিভাগ", "বিবরণ", "পরিমাণ", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}</tr></thead>
             <tbody>
               {[...data].reverse().map(t => (
-                <tr key={t.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <tr key={t.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "10px 14px" }}>{t.date}</td>
                   <td style={{ padding: "10px 14px" }}><StatusBadge status={t.type} /></td>
                   <td style={{ padding: "10px 14px" }}>{t.category}</td>
@@ -1000,7 +1000,7 @@ function Materials({ data, onRefresh }) {
       await supabase.from("materials").insert([{ name: row["নাম"], unit: row["একক"] || "পিস", stock: +row["স্টক"] || 0, min_stock: +row["ন্যূনতম"] || 0, unit_price: +row["একক_মূল্য"] || 0, supplier: row["সাপ্লায়ার"] || "" }]);
       count++;
     }
-    alert(`✅ ${count}টি সামগ্রী আপলোড হয়েছে!`); onRefresh(); e.target.value = "";
+    alert("✅ " + count + "টি সামগ্রী আপলোড হয়েছে!"); onRefresh(); e.target.value = "";
   };
 
   return (
@@ -1009,10 +1009,10 @@ function Materials({ data, onRefresh }) {
       <Card>
         <div id="materials-content" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["সামগ্রী", "একক", "স্টক", "ন্যূনতম", "মূল্য/একক", "মোট মূল্য", "সাপ্লায়ার", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["সামগ্রী", "একক", "স্টক", "ন্যূনতম", "মূল্য/একক", "মোট মূল্য", "সাপ্লায়ার", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}</tr></thead>
             <tbody>
               {data.map(m => (
-                <tr key={m.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <tr key={m.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "10px 14px" }}><strong style={{ color: C.primaryDark }}>{m.name}</strong></td>
                   <td style={{ padding: "10px 14px" }}>{m.unit}</td>
                   <td style={{ padding: "10px 14px" }}><span style={{ fontWeight: 600, color: m.stock < m.min_stock ? C.red : C.gray800 }}>{fmtNum(m.stock)}</span></td>
@@ -1139,13 +1139,13 @@ function Dashboard({ projects, clients, employees, transactions, materials }) {
     <div>
       <h2 style={{ color: C.primaryDark, fontSize: 18, fontWeight: 700, marginBottom: 18 }}>ড্যাশবোর্ড</h2>
       <div id="dashboard-content">
-        <div style={{ marginBottom: 20, padding: "18px 22px", background: `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`, borderRadius: 14, color: C.white }}>
+        <div style={{ marginBottom: 20, padding: "18px 22px", background: "linear-gradient(135deg, " + C.primaryDark + ", " + C.primary + ")", borderRadius: 14, color: C.white }}>
           <div style={{ fontSize: 13, opacity: 0.8 }}>স্বাগতম,</div>
           <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>Noksha Interior & Construction</div>
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>আজকের তারিখ: {new Date().toLocaleDateString("bn-BD")} | Supabase Connected ✅</div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 20 }}>
-          <StatCard icon="🏗️" label="সক্রিয় প্রজেক্ট" value={fmtNum(activeProjects)} sub={`মোট ${projects.length}টি`} color="#E8F5E9" />
+          <StatCard icon="🏗️" label="সক্রিয় প্রজেক্ট" value={fmtNum(activeProjects)} sub={"মোট " + projects.length + "টি"} color="#E8F5E9" />
           <StatCard icon="👥" label="মোট ক্লায়েন্ট" value={fmtNum(clients.length)} color="#F0FFF4" />
           <StatCard icon="👷" label="কর্মী সংখ্যা" value={fmtNum(employees.length)} color="#FFF8E1" />
           <StatCard icon="💰" label="মোট আয়" value={fmt(totalIncome)} color="#F0FFF4" />
@@ -1170,7 +1170,7 @@ function Dashboard({ projects, clients, employees, transactions, materials }) {
           <Card>
             <h3 style={{ margin: "0 0 14px", color: C.primaryDark, fontSize: 14, fontWeight: 700 }}>সর্বশেষ লেনদেন</h3>
             {[...transactions].slice(-5).reverse().map(t => (
-              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${C.gray100}` }}>
+              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid " + C.gray100 }}>
                 <div><div style={{ fontSize: 13, fontWeight: 600 }}>{t.description}</div><div style={{ fontSize: 11, color: C.gray400 }}>{t.date}</div></div>
                 <div style={{ fontWeight: 700, color: t.type === "আয়" ? C.green : C.red, fontSize: 13 }}>{t.type === "আয়" ? "+" : "-"}{fmt(t.amount)}</div>
               </div>
@@ -1183,7 +1183,7 @@ function Dashboard({ projects, clients, employees, transactions, materials }) {
             <h3 style={{ margin: "0 0 12px", color: C.primaryDark, fontSize: 14, fontWeight: 700 }}>⚠️ কম স্টক সতর্কতা</h3>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {materials.filter(m => m.stock < m.min_stock).map(m => (
-                <div key={m.id} style={{ background: C.redLight, border: `1px solid #F5C6CB`, borderRadius: 10, padding: "10px 14px" }}>
+                <div key={m.id} style={{ background: C.redLight, border: "1px solid #F5C6CB", borderRadius: 10, padding: "10px 14px" }}>
                   <div style={{ fontWeight: 700, color: C.red, fontSize: 13 }}>{m.name}</div>
                   <div style={{ fontSize: 12, color: C.gray600 }}>বর্তমান: {fmtNum(m.stock)} {m.unit}</div>
                 </div>
@@ -1284,10 +1284,12 @@ function BOQSystem() {
     const content = document.getElementById("boq-print-area");
     if (!content) return;
     const win = window.open("", "_blank");
-    win.document.write(`<html><head><title>BOQ — NIC</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#1A1A1A}.header{text-align:center;border-bottom:3px solid #3F5F45;padding-bottom:12px;margin-bottom:16px}.company-name{font-size:22px;font-weight:800;color:#3F5F45}.doc-title{font-size:15px;font-weight:700;background:#E8F0E9;color:#2A3F2E;padding:4px 16px;border-radius:6px;display:inline-block;margin-top:6px}table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px}th{background:#3F5F45;color:white;padding:8px 10px;text-align:center}td{padding:7px 10px;border:1px solid #ddd;text-align:center}.room-header{background:#3F5F45;color:white;padding:8px 14px;font-weight:bold;margin-top:14px}.subtotal{background:#E8F0E9;font-weight:bold}.total-box{max-width:400px;margin-left:auto;border:2px solid #3F5F45;padding:14px;border-radius:6px}.exclusions{margin-top:16px;background:#fff8e1;border:1px solid #C9A84C;padding:12px;border-radius:6px}.signatures{display:flex;justify-content:space-between;margin-top:40px;padding-top:14px;border-top:1px solid #ddd}.sig-line{border-top:1px solid #333;padding-top:4px;width:150px;text-align:center;font-size:12px}@media print{body{padding:10px}}</style></head><body>`);
-    win.document.write(`<div class="header"><div class="company-name">NOKSHA INTERIOR & CONSTRUCTION</div><div style="font-size:12px;color:#6B8F6B">নীলটুলী, ফরিদপুর | পল্লবী, ঢাকা</div><div class="doc-title">BILL OF QUANTITIES (BOQ)</div><div style="font-size:12px;margin-top:6px">Project: ${settings?.project_name || ""} | Client: ${settings?.client_name || ""} | তারিখ: ${new Date().toLocaleDateString("en-BD")}</div></div>`);
+          const boqStyle = "<html><head><title>BOQ - NIC</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#1A1A1A}.header{text-align:center;border-bottom:3px solid #3F5F45;padding-bottom:12px;margin-bottom:16px}.company-name{font-size:22px;font-weight:800;color:#3F5F45}.doc-title{font-size:15px;font-weight:700;background:#E8F0E9;color:#2A3F2E;padding:4px 16px;border-radius:6px;display:inline-block;margin-top:6px}table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px}th{background:#3F5F45;color:white;padding:8px 10px;text-align:center}td{padding:7px 10px;border:1px solid #ddd;text-align:center}.room-header{background:#3F5F45;color:white;padding:8px 14px;font-weight:bold;margin-top:14px}.subtotal{background:#E8F0E9;font-weight:bold}.total-box{max-width:400px;margin-left:auto;border:2px solid #3F5F45;padding:14px;border-radius:6px}.exclusions{margin-top:16px;background:#fff8e1;border:1px solid #C9A84C;padding:12px;border-radius:6px}.signatures{display:flex;justify-content:space-between;margin-top:40px;padding-top:14px;border-top:1px solid #ddd}.sig-line{border-top:1px solid #333;padding-top:4px;width:150px;text-align:center;font-size:12px}@media print{body{padding:10px}}</style></head><body>";
+      win.document.write(boqStyle);
+          const boqHeader = "<div class=\"header\"><div class=\"company-name\">NOKSHA INTERIOR & CONSTRUCTION</div><div style=\"font-size:12px;color:#6B8F6B\">নীলটুলী, ফরিদপুর | পল্লবী, ঢাকা</div><div class=\"doc-title\">BILL OF QUANTITIES (BOQ)</div><div style=\"font-size:12px;margin-top:6px\">Project: " + (settings?.project_name || "") + " | Client: " + (settings?.client_name || "") + " | Date: " + new Date().toLocaleDateString("en-GB") + "</div></div>";
+      win.document.write(boqHeader);
     win.document.write(content.innerHTML);
-    win.document.write(`</body></html>`);
+    win.document.write("</body></html>");
     win.document.close();
     setTimeout(() => win.print(), 600);
   };
@@ -1319,14 +1321,14 @@ function BOQSystem() {
         <Card style={{ textAlign: "center", padding: "60px 20px" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
           <div style={{ color: C.primaryDark, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>BOQ Management System</div>
-          <div style={{ color: C.gray600, fontSize: 13 }}>{projects.length > 0 ? `${projects.length}টি project আছে। উপর থেকে বেছে নিন।` : "শুরু করতে নতুন project তৈরি করুন।"}</div>
+          <div style={{ color: C.gray600, fontSize: 13 }}>{projects.length > 0 ? projects.length + "টি project আছে। উপর থেকে বেছে নিন।" : "শুরু করতে নতুন project তৈরি করুন।"}</div>
         </Card>
       ) : (
         <>
           {/* Tabs */}
-          <div style={{ display: "flex", borderBottom: `2px solid ${C.primary}`, marginBottom: 20 }}>
+          <div style={{ display: "flex", borderBottom: "2px solid " + C.primary, marginBottom: 20 }}>
             {[{ k: "boq", l: "📋 BOQ" }, { k: "expenses", l: "💸 Daily Expenses" }, { k: "compare", l: "📊 Profit Analysis" }].map(t => (
-              <button key={t.k} onClick={() => setTab(t.k)} style={{ padding: "10px 20px", border: "none", borderBottom: tab === t.k ? `3px solid #C9A84C` : "3px solid transparent", background: "none", color: tab === t.k ? C.primaryDark : C.gray600, fontWeight: tab === t.k ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>{t.l}</button>
+              <button key={t.k} onClick={() => setTab(t.k)} style={{ padding: "10px 20px", border: "none", borderBottom: tab === t.k ? "3px solid #C9A84C" : "3px solid transparent", background: "none", color: tab === t.k ? C.primaryDark : C.gray600, fontWeight: tab === t.k ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>{t.l}</button>
             ))}
           </div>
 
@@ -1405,14 +1407,14 @@ function BOQSystem() {
                                 <BOQDeliveryEdit value={deliveryCharge} onSave={updateDelivery} />
                               </td>
                             </tr>
-                            <tr style={{ borderTop: `2px solid ${C.primary}` }}>
+                            <tr style={{ borderTop: "2px solid " + C.primary }}>
                               <td style={{ padding: "10px 0", fontWeight: 700, color: C.primaryDark, fontSize: 16 }}>Sub Total:</td>
                               <td style={{ textAlign: "right", fontWeight: 700, color: C.primaryDark, fontSize: 16 }}>৳ {fmtBOQ(subTotal)}</td>
                             </tr>
                           </tbody>
                         </table>
                         {/* Payment Terms */}
-                        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.gray200}` }}>
+                        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid " + C.gray200 }}>
                           <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 8, fontSize: 13 }}>Payment Terms:</div>
                           {[[settings?.payment_term_1 || 50, "কাজ শুরুর আগে"], [settings?.payment_term_2 || 40, "কাজ চলাকালীন"], [settings?.payment_term_3 || 10, "কাজ সম্পন্নে"]].map(([pct, label], i) => (
                             <div key={i} style={{ fontSize: 13, marginBottom: 4 }}>• {i + 1}ম কিস্তি ({label}): <strong>{pct}%</strong> = ৳ {fmtBOQ(subTotal * pct / 100)}</div>
@@ -1422,7 +1424,7 @@ function BOQSystem() {
 
                       {/* Exclusions */}
                       {settings?.exclusions?.length > 0 && (
-                        <Card style={{ marginTop: 16, background: "#fff8e1", border: `1px solid #C9A84C` }}>
+                        <Card style={{ marginTop: 16, background: "#fff8e1", border: "1px solid #C9A84C" }}>
                           <div style={{ fontWeight: 700, color: "#856404", marginBottom: 8 }}>Exclusions (BOQ তে অন্তর্ভুক্ত নয়):</div>
                           {settings.exclusions.map((ex, i) => <div key={i} style={{ fontSize: 13 }}>• {ex}</div>)}
                         </Card>
@@ -1437,9 +1439,9 @@ function BOQSystem() {
                       )}
 
                       {/* Signatures */}
-                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 40, paddingTop: 14, borderTop: `1px solid ${C.gray200}` }}>
-                        <div style={{ textAlign: "center" }}><div style={{ borderTop: `1px solid ${C.gray800}`, paddingTop: 4, width: 150, fontSize: 12 }}>Client Signature</div></div>
-                        <div style={{ textAlign: "center" }}><div style={{ borderTop: `1px solid ${C.gray800}`, paddingTop: 4, width: 150, fontSize: 12 }}>Authorized by NIC</div></div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 40, paddingTop: 14, borderTop: "1px solid " + C.gray200 }}>
+                        <div style={{ textAlign: "center" }}><div style={{ borderTop: "1px solid " + C.gray800, paddingTop: 4, width: 150, fontSize: 12 }}>Client Signature</div></div>
+                        <div style={{ textAlign: "center" }}><div style={{ borderTop: "1px solid " + C.gray800, paddingTop: 4, width: 150, fontSize: 12 }}>Authorized by NIC</div></div>
                       </div>
                     </>
                   )}
@@ -1469,7 +1471,7 @@ function BOQDeliveryEdit({ value, onSave }) {
   useEffect(() => { setVal(value); }, [value]);
   if (editing) return (
     <span style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
-      <input type="number" value={val} onChange={e => setVal(e.target.value)} style={{ width: 90, padding: "3px 6px", border: `1px solid ${C.gray200}`, borderRadius: 4 }} />
+      <input type="number" value={val} onChange={e => setVal(e.target.value)} style={{ width: 90, padding: "3px 6px", border: "1px solid " + C.gray200, borderRadius: 4 }} />
       <button onClick={() => { onSave(val); setEditing(false); }} style={{ background: C.primary, color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 12 }}>✓</button>
     </span>
   );
@@ -1500,10 +1502,10 @@ function BOQExpenses({ expenses, onSave, onDelete }) {
       <Card>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "Item", "বিবরণ", "Category", "Qty", "Rate", "Amount", ""].map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "Item", "বিবরণ", "Category", "Qty", "Rate", "Amount", ""].map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}</tr></thead>
             <tbody>
               {expenses.length === 0 ? <tr><td colSpan={8} style={{ textAlign: "center", padding: 40, color: C.gray400 }}>কোনো expense নেই</td></tr> : expenses.map((e, i) => (
-                <tr key={e.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={ev => ev.currentTarget.style.background = C.primaryBg} onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}>
+                <tr key={e.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={ev => ev.currentTarget.style.background = C.primaryBg} onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "9px 12px" }}>{e.expense_date}</td>
                   <td style={{ padding: "9px 12px", fontWeight: 600, color: C.primaryDark }}>{e.item_name}</td>
                   <td style={{ padding: "9px 12px", color: C.gray600 }}>{e.description}</td>
@@ -1531,16 +1533,16 @@ function BOQComparison({ grandTotal, deliveryCharge, subTotal, totalExpenses, ne
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 20 }}>
-        <StatCard icon="📋" label="BOQ Contract Value" value={`৳ ${fmtBOQ(subTotal)}`} color={C.primaryBg} />
-        <StatCard icon="💸" label="মোট Actual Expense" value={`৳ ${fmtBOQ(totalExpenses)}`} color="#FFEBEE" />
-        <StatCard icon={isProfit ? "📈" : "📉"} label={`Net ${isProfit ? "Profit" : "Loss"} (${profitPct}%)`} value={`৳ ${fmtBOQ(Math.abs(netProfit))}`} color={isProfit ? "#E8F5E9" : "#FFEBEE"} />
+        <StatCard icon="📋" label="BOQ Contract Value" value={"৳ " + fmtBOQ(subTotal)} color={C.primaryBg} />
+        <StatCard icon="💸" label="মোট Actual Expense" value={"৳ " + fmtBOQ(totalExpenses)} color="#FFEBEE" />
+        <StatCard icon={isProfit ? "📈" : "📉"} label={"Net " + (isProfit ? "Profit" : "Loss") + " (" + profitPct + "%)"} value={"৳ " + fmtBOQ(Math.abs(netProfit))} color={isProfit ? "#E8F5E9" : "#FFEBEE"} />
       </div>
 
       <Card style={{ marginBottom: 16 }}>
         <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 12 }}>Expense vs Revenue</div>
         <div style={{ background: C.gray100, borderRadius: 10, height: 32, overflow: "hidden", position: "relative" }}>
-          <div style={{ width: `${expensePct}%`, height: "100%", background: C.red, borderRadius: 10, display: "flex", alignItems: "center", paddingLeft: 10, color: "#fff", fontSize: 12, fontWeight: 700, transition: "width 0.5s", minWidth: expensePct > 0 ? 80 : 0 }}>
-            {expensePct > 5 && `Expense: ${expensePct.toFixed(1)}%`}
+          <div style={{ width: expensePct + "%", height: "100%", background: C.red, borderRadius: 10, display: "flex", alignItems: "center", paddingLeft: 10, color: "#fff", fontSize: 12, fontWeight: 700, transition: "width 0.5s", minWidth: expensePct > 0 ? 80 : 0 }}>
+            {expensePct > 5 && "Expense: " + expensePct.toFixed(1) + "%"}
           </div>
         </div>
         <div style={{ fontSize: 12, color: C.gray600, marginTop: 6 }}>Profit margin: <strong style={{ color: isProfit ? C.green : C.red }}>{profitPct}%</strong></div>
@@ -1549,18 +1551,18 @@ function BOQComparison({ grandTotal, deliveryCharge, subTotal, totalExpenses, ne
       <Card>
         <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 12 }}>Room-wise BOQ Breakdown</div>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead><tr style={{ background: C.primaryBg }}>{["Room / Area", "BOQ Amount (৳)", "% of Total"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>{h}</th>)}</tr></thead>
+          <thead><tr style={{ background: C.primaryBg }}>{["Room / Area", "BOQ Amount (৳)", "% of Total"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}</tr></thead>
           <tbody>
             {Object.entries(roomGroups).map(([room, items]) => {
               const rt = items.reduce((s, i) => s + Number(i.amount || 0), 0);
               const pct = grandTotal > 0 ? ((rt / grandTotal) * 100).toFixed(1) : 0;
               return (
-                <tr key={room} style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                <tr key={room} style={{ borderBottom: "1px solid " + C.gray100 }}>
                   <td style={{ padding: "9px 12px", fontWeight: 600, color: C.primaryDark }}>{room}</td>
                   <td style={{ padding: "9px 12px", fontWeight: 700 }}>৳ {fmtBOQ(rt)}</td>
                   <td style={{ padding: "9px 12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ flex: 1, background: C.gray100, borderRadius: 4, height: 8 }}><div style={{ width: `${pct}%`, height: "100%", background: C.primary, borderRadius: 4 }} /></div>
+                      <div style={{ flex: 1, background: C.gray100, borderRadius: 4, height: 8 }}><div style={{ width: pct + "%", height: "100%", background: C.primary, borderRadius: 4 }} /></div>
                       <span style={{ minWidth: 35, fontSize: 12 }}>{pct}%</span>
                     </div>
                   </td>
@@ -1618,7 +1620,7 @@ function BOQItemModal({ item, onSave, onClose, stdRates, existingRooms }) {
           <div style={{ gridColumn: "1/-1" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: C.gray600, marginBottom: 6 }}>Standard Rate থেকে নিন:</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {stdRates.map(sr => <button key={sr.id} onClick={() => setForm(f => ({ ...f, item_name: sr.item_name, unit: sr.unit, rate: sr.rate, is_rate_fixed: true }))} style={{ background: C.primaryBg, border: `1px solid ${C.primaryLight}`, borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 11, color: C.primaryDark }}>{sr.item_name} ({sr.rate}/{sr.unit})</button>)}
+              {stdRates.map(sr => <button key={sr.id} onClick={() => setForm(f => ({ ...f, item_name: sr.item_name, unit: sr.unit, rate: sr.rate, is_rate_fixed: true }))} style={{ background: C.primaryBg, border: "1px solid " + C.primaryLight, borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 11, color: C.primaryDark }}>{sr.item_name} ({sr.rate}/{sr.unit})</button>)}
             </div>
           </div>
         )}
@@ -1682,11 +1684,11 @@ function ConstructionProjects({ currentUser }) {
         <Card style={{ textAlign: "center", padding: "50px 20px" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🏗️</div>
           <div style={{ color: C.primaryDark, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Construction Site Management</div>
-          <div style={{ color: C.gray600, fontSize: 13 }}>{projects.length > 0 ? `${projects.length}টি প্রজেক্ট আছে। উপর থেকে বেছে নিন।` : "শুরু করতে নতুন প্রজেক্ট তৈরি করুন।"}</div>
+          <div style={{ color: C.gray600, fontSize: 13 }}>{projects.length > 0 ? projects.length + "টি প্রজেক্ট আছে। উপর থেকে বেছে নিন।" : "শুরু করতে নতুন প্রজেক্ট তৈরি করুন।"}</div>
         </Card>
       ) : (
         <>
-          <div style={{ background: `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`, borderRadius: 12, padding: "14px 20px", marginBottom: 16, color: C.white, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ background: "linear-gradient(135deg, " + C.primaryDark + ", " + C.primary + ")", borderRadius: 12, padding: "14px 20px", marginBottom: 16, color: C.white, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 800 }}>{selProject.name}</div>
               <div style={{ fontSize: 12, opacity: 0.8, marginTop: 3 }}>ক্লায়েন্ট: {selProject.client_name} | সাইট: {selProject.site_address}</div>
@@ -1698,9 +1700,9 @@ function ConstructionProjects({ currentUser }) {
               <span style={{ background: "rgba(255,255,255,0.2)", padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>{selProject.status}</span>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `2px solid ${C.gray200}`, overflowX: "auto" }}>
+          <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "2px solid " + C.gray200, overflowX: "auto" }}>
             {CP_TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "10px 16px", border: "none", borderBottom: tab === t.id ? `3px solid ${C.primary}` : "3px solid transparent", background: "none", color: tab === t.id ? C.primaryDark : C.gray600, fontWeight: tab === t.id ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "10px 16px", border: "none", borderBottom: tab === t.id ? "3px solid " + C.primary : "3px solid transparent", background: "none", color: tab === t.id ? C.primaryDark : C.gray600, fontWeight: tab === t.id ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: "inherit", whiteSpace: "nowrap" }}>
                 {t.icon} {t.label}
               </button>
             ))}
@@ -1769,15 +1771,15 @@ function CPDailyUpdates({ projectId }) {
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 700, color: C.primary, fontSize: 14 }}>📅 {item.update_date}</span>
                   <Badge label={item.category} color="primary" />
-                  <Badge label={`👷 ${item.workers_count} জন`} color="blue" />
-                  <Badge label={`☁️ ${item.weather}`} color="gray" />
-                  {item.progress_pct > 0 && <Badge label={`📈 ${item.progress_pct}%`} color="green" />}
+                  <Badge label={"👷 " + item.workers_count + " জন"} color="blue" />
+                  <Badge label={"☁️ " + item.weather} color="gray" />
+                  {item.progress_pct > 0 && <Badge label={"📈 " + item.progress_pct + "%"} color="green" />}
                 </div>
                 <div style={{ fontWeight: 600, color: C.primaryDark, fontSize: 14, marginBottom: 6 }}>{item.work_done}</div>
                 {item.issues && <div style={{ fontSize: 12, color: C.red, background: C.redLight, padding: "6px 10px", borderRadius: 6, marginBottom: 6 }}>⚠️ {item.issues}</div>}
                 {item.next_plan && <div style={{ fontSize: 12, color: C.gray600, background: C.gray50, padding: "6px 10px", borderRadius: 6 }}>📋 {item.next_plan}</div>}
                 {item.reported_by && <div style={{ fontSize: 11, color: C.gray400, marginTop: 4 }}>রিপোর্টকারী: {item.reported_by}</div>}
-                {item.image_url && <div style={{ marginTop: 8 }}><img src={item.image_url} alt="Site" style={{ maxWidth: "100%", maxHeight: 150, borderRadius: 8, border: `1px solid ${C.gray200}`, objectFit: "cover" }} /></div>}
+                {item.image_url && <div style={{ marginTop: 8 }}><img src={item.image_url} alt="Site" style={{ maxWidth: "100%", maxHeight: 150, borderRadius: 8, border: "1px solid " + C.gray200, objectFit: "cover" }} /></div>}
               </div>
               <div style={{ display: "flex", gap: 6, marginLeft: 12 }}>
                 <button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button>
@@ -1861,7 +1863,7 @@ function CPExpenses({ projectId }) {
           <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 13, marginBottom: 8 }}>ক্যাটাগরি অনুযায়ী:</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {Object.entries(catGroups).sort((a, b) => b[1] - a[1]).map(([cat, total]) => (
-              <div key={cat} style={{ background: C.primaryBg, border: `1px solid ${C.primaryLight}`, borderRadius: 8, padding: "6px 12px" }}>
+              <div key={cat} style={{ background: C.primaryBg, border: "1px solid " + C.primaryLight, borderRadius: 8, padding: "6px 12px" }}>
                 <div style={{ fontSize: 11, color: C.gray600 }}>{cat}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.primaryDark }}>{fmt(total)}</div>
               </div>
@@ -1872,10 +1874,10 @@ function CPExpenses({ projectId }) {
       <Card>
         <div id="expenses-print" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার", "পেমেন্ট", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার", "পেমেন্ট", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>
               {items.map(item => (
-                <tr key={item.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{item.expense_date}</td>
                   <td style={{ padding: "8px 10px" }}><Badge label={item.category} color="primary" /></td>
                   <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{item.item_name}</td>
@@ -1902,13 +1904,13 @@ function CPExpenses({ projectId }) {
               <thead>
                 <tr style={{ background: C.primaryBg }}>
                   {["তারিখ", "ক্যাটাগরি", "আইটেম *", "বিবরণ", "একক", "পরিমাণ", "একক মূল্য *", "মোট", "পেমেন্ট", ""].map(h => (
-                    <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>
+                    <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row, idx) => (
-                  <tr key={idx} style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                  <tr key={idx} style={{ borderBottom: "1px solid " + C.gray100 }}>
                     <td style={{ padding: "4px" }}><input type="date" value={row.expense_date} onChange={e => updateRow(idx, "expense_date", e.target.value)} style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 110 }} /></td>
                     <td style={{ padding: "4px" }}>
                       <select value={row.category} onChange={e => updateRow(idx, "category", e.target.value)} style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 120 }}>
@@ -1946,7 +1948,7 @@ function CPExpenses({ projectId }) {
             </table>
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-            <button onClick={addRow} style={{ background: C.primaryBg, color: C.primaryDark, border: `1px solid ${C.primary}`, borderRadius: 8, padding: "10px 20px", fontWeight: 600, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>+ নতুন সারি যোগ করুন</button>
+            <button onClick={addRow} style={{ background: C.primaryBg, color: C.primaryDark, border: "1px solid " + C.primary, borderRadius: 8, padding: "10px 20px", fontWeight: 600, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>+ নতুন সারি যোগ করুন</button>
             <button onClick={saveMultiRows} style={{ ...btnPrimary, width: "auto", padding: "10px 24px" }}>✅ সব সংরক্ষণ করুন ({rows.filter(r => r.item_name && r.unit_price).length}টি)</button>
           </div>
         </Modal>
@@ -2000,15 +2002,15 @@ function CPStock({ projectId }) {
   const lowStock = items.filter(i => i.closing_stock <= i.min_stock && i.min_stock > 0);
   return (
     <div>
-      {lowStock.length > 0 && <Card style={{ background: C.redLight, border: `1px solid #F5C6CB`, marginBottom: 14 }}><div style={{ fontWeight: 700, color: C.red, marginBottom: 8 }}>⚠️ কম স্টক:</div><div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{lowStock.map(i => <span key={i.id} style={{ background: C.white, padding: "4px 10px", borderRadius: 6, fontSize: 12, color: C.red, fontWeight: 600 }}>{i.item_name}: {i.closing_stock} {i.unit}</span>)}</div></Card>}
+      {lowStock.length > 0 && <Card style={{ background: C.redLight, border: "1px solid #F5C6CB", marginBottom: 14 }}><div style={{ fontWeight: 700, color: C.red, marginBottom: 8 }}>⚠️ কম স্টক:</div><div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{lowStock.map(i => <span key={i.id} style={{ background: C.white, padding: "4px 10px", borderRadius: 6, fontSize: 12, color: C.red, fontWeight: 600 }}>{i.item_name}: {i.closing_stock} {i.unit}</span>)}</div></Card>}
       <SectionHeader title="🧱 Stock Register" action="নতুন আইটেম" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => { printSection("Stock Register", "stock-print"); }} onExport={() => exportToExcel(items.map(i => ({ আইটেম: i.item_name, ক্যাটাগরি: i.category, একক: i.unit, প্রারম্ভিক: i.opening_stock, প্রাপ্ত: i.received, ব্যবহৃত: i.used, অবশিষ্ট: i.closing_stock, একক_মূল্য: i.unit_price, মোট_মূল্য: i.total_value, সাপ্লায়ার: i.supplier })), "Stock", "Stock_Register")} />
       <Card>
         <div id="stock-print" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["আইটেম", "ক্যাটাগরি", "একক", "প্রারম্ভিক", "প্রাপ্ত", "ব্যবহৃত", "অবশিষ্ট", "একক মূল্য", "মোট মূল্য", "সাপ্লায়ার", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["আইটেম", "ক্যাটাগরি", "একক", "প্রারম্ভিক", "প্রাপ্ত", "ব্যবহৃত", "অবশিষ্ট", "একক মূল্য", "মোট মূল্য", "সাপ্লায়ার", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>
               {items.map(item => (
-                <tr key={item.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{item.item_name}</td>
                   <td style={{ padding: "8px 10px" }}><Badge label={item.category} color="primary" /></td>
                   <td style={{ padding: "8px 10px" }}>{item.unit}</td>
@@ -2080,10 +2082,10 @@ function CPPayments({ projectId }) {
       <Card>
         <div id="payments-print" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "কিস্তির ধরন", "পরিমাণ", "পেমেন্ট পদ্ধতি", "প্রেরক", "গ্রহণকারী", "রেফারেন্স", "নোট", "Action"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "কিস্তির ধরন", "পরিমাণ", "পেমেন্ট পদ্ধতি", "প্রেরক", "গ্রহণকারী", "রেফারেন্স", "নোট", "Action"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>
               {items.map(item => (
-                <tr key={item.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "9px 12px", whiteSpace: "nowrap" }}>{item.receive_date}</td>
                   <td style={{ padding: "9px 12px" }}><Badge label={item.payment_type} color="primary" /></td>
                   <td style={{ padding: "9px 12px", fontWeight: 700, color: C.green, fontSize: 14 }}>+{fmt(item.amount)}</td>
@@ -2262,11 +2264,11 @@ function InteriorProjects({ currentUser }) {
         <Card style={{ textAlign: "center", padding: "50px 20px" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🛋️</div>
           <div style={{ color: C.primaryDark, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Interior Project Management</div>
-          <div style={{ color: C.gray600, fontSize: 13 }}>{projects.length > 0 ? `${projects.length}টি প্রজেক্ট আছে। উপর থেকে বেছে নিন।` : "শুরু করতে নতুন প্রজেক্ট তৈরি করুন।"}</div>
+          <div style={{ color: C.gray600, fontSize: 13 }}>{projects.length > 0 ? projects.length + "টি প্রজেক্ট আছে। উপর থেকে বেছে নিন।" : "শুরু করতে নতুন প্রজেক্ট তৈরি করুন।"}</div>
         </Card>
       ) : (
         <>
-          <div style={{ background: `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`, borderRadius: 12, padding: "14px 20px", marginBottom: 16, color: C.white, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ background: "linear-gradient(135deg, " + C.primaryDark + ", " + C.primary + ")", borderRadius: 12, padding: "14px 20px", marginBottom: 16, color: C.white, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 800 }}>{selProject.name}</div>
               <div style={{ fontSize: 12, opacity: 0.8, marginTop: 3 }}>ক্লায়েন্ট: {selProject.client_name} | {selProject.site_address}</div>
@@ -2278,9 +2280,9 @@ function InteriorProjects({ currentUser }) {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `2px solid ${C.gray200}`, overflowX: "auto" }}>
+          <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "2px solid " + C.gray200, overflowX: "auto" }}>
             {IP_TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "10px 16px", border: "none", borderBottom: tab === t.id ? `3px solid ${C.primary}` : "3px solid transparent", background: "none", color: tab === t.id ? C.primaryDark : C.gray600, fontWeight: tab === t.id ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "10px 16px", border: "none", borderBottom: tab === t.id ? "3px solid " + C.primary : "3px solid transparent", background: "none", color: tab === t.id ? C.primaryDark : C.gray600, fontWeight: tab === t.id ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: "inherit", whiteSpace: "nowrap" }}>
                 {t.icon} {t.label}
               </button>
             ))}
@@ -2356,8 +2358,8 @@ function IPDailyUpdates({ projectId }) {
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 700, color: C.primary, fontSize: 14 }}>📅 {item.update_date}</span>
                   <Badge label={item.category} color="primary" />
-                  {item.workers_count > 0 && <Badge label={`👷 ${item.workers_count} জন`} color="blue" />}
-                  {item.progress_pct > 0 && <Badge label={`📈 ${item.progress_pct}%`} color="green" />}
+                  {item.workers_count > 0 && <Badge label={"👷 " + item.workers_count + " জন"} color="blue" />}
+                  {item.progress_pct > 0 && <Badge label={"📈 " + item.progress_pct + "%"} color="green" />}
                 </div>
                 <div style={{ fontWeight: 600, color: C.primaryDark, fontSize: 14, marginBottom: 6 }}>{item.work_done}</div>
                 {item.issues && <div style={{ fontSize: 12, color: C.red, background: C.redLight, padding: "6px 10px", borderRadius: 6, marginBottom: 6 }}>⚠️ {item.issues}</div>}
@@ -2447,7 +2449,7 @@ function IPExpenses({ projectId }) {
           <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 13, marginBottom: 8 }}>ক্যাটাগরি অনুযায়ী:</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {Object.entries(catGroups).sort((a, b) => b[1] - a[1]).map(([cat, total]) => (
-              <div key={cat} style={{ background: C.primaryBg, border: `1px solid ${C.primaryLight}`, borderRadius: 8, padding: "6px 12px" }}>
+              <div key={cat} style={{ background: C.primaryBg, border: "1px solid " + C.primaryLight, borderRadius: 8, padding: "6px 12px" }}>
                 <div style={{ fontSize: 11, color: C.gray600 }}>{cat}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.primaryDark }}>{fmt(total)}</div>
               </div>
@@ -2458,10 +2460,10 @@ function IPExpenses({ projectId }) {
       <Card>
         <div id="ip-expenses-print" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>
               {items.map(item => (
-                <tr key={item.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{item.expense_date}</td>
                   <td style={{ padding: "8px 10px" }}><Badge label={item.category} color="primary" /></td>
                   <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{item.item_name}</td>
@@ -2484,10 +2486,10 @@ function IPExpenses({ projectId }) {
         <Modal title="একসাথে একাধিক খরচ" onClose={() => setShowMultiModal(false)} size={900}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ক্যাটাগরি", "আইটেম *", "বিবরণ", "একক", "পরিমাণ", "মূল্য *", "মোট", "স্ট্যাটাস", ""].map(h => <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+              <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ক্যাটাগরি", "আইটেম *", "বিবরণ", "একক", "পরিমাণ", "মূল্য *", "মোট", "স্ট্যাটাস", ""].map(h => <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
               <tbody>
                 {rows.map((row, idx) => (
-                  <tr key={idx} style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                  <tr key={idx} style={{ borderBottom: "1px solid " + C.gray100 }}>
                     <td style={{ padding: "4px" }}><input type="date" value={row.expense_date} onChange={e => updateRow(idx, "expense_date", e.target.value)} style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 110 }} /></td>
                     <td style={{ padding: "4px" }}><select value={row.category} onChange={e => updateRow(idx, "category", e.target.value)} style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 130 }}>{categories.map(c => <option key={c}>{c}</option>)}</select></td>
                     <td style={{ padding: "4px" }}><input value={row.item_name} onChange={e => updateRow(idx, "item_name", e.target.value)} placeholder="আইটেম *" style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, minWidth: 120 }} /></td>
@@ -2505,7 +2507,7 @@ function IPExpenses({ projectId }) {
             </table>
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-            <button onClick={addRow} style={{ background: C.primaryBg, color: C.primaryDark, border: `1px solid ${C.primary}`, borderRadius: 8, padding: "10px 20px", fontWeight: 600, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>+ নতুন সারি</button>
+            <button onClick={addRow} style={{ background: C.primaryBg, color: C.primaryDark, border: "1px solid " + C.primary, borderRadius: 8, padding: "10px 20px", fontWeight: 600, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>+ নতুন সারি</button>
             <button onClick={saveMultiRows} style={{ ...btnPrimary, width: "auto", padding: "10px 24px" }}>✅ সব সংরক্ষণ ({rows.filter(r => r.item_name && r.unit_price).length}টি)</button>
           </div>
         </Modal>
@@ -2565,10 +2567,10 @@ function IPStock({ projectId }) {
       <Card>
         <div id="ip-stock-print" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["আইটেম", "ক্যাটাগরি", "একক", "প্রারম্ভিক", "প্রাপ্ত", "ব্যবহৃত", "অবশিষ্ট", "মূল্য", "মোট মূল্য", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["আইটেম", "ক্যাটাগরি", "একক", "প্রারম্ভিক", "প্রাপ্ত", "ব্যবহৃত", "অবশিষ্ট", "মূল্য", "মোট মূল্য", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>
               {items.map(item => (
-                <tr key={item.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{item.item_name}</td>
                   <td style={{ padding: "8px 10px" }}><Badge label={item.category} color="primary" /></td>
                   <td style={{ padding: "8px 10px" }}>{item.unit}</td>
@@ -2638,10 +2640,10 @@ function IPPayments({ projectId }) {
       <Card>
         <div id="ip-payments-print" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "কিস্তির ধরন", "পরিমাণ", "পেমেন্ট", "প্রেরক", "গ্রহণকারী", "রেফারেন্স", "নোট", "Action"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "কিস্তির ধরন", "পরিমাণ", "পেমেন্ট", "প্রেরক", "গ্রহণকারী", "রেফারেন্স", "নোট", "Action"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>
               {items.map(item => (
-                <tr key={item.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "9px 12px" }}>{item.receive_date}</td>
                   <td style={{ padding: "9px 12px" }}><Badge label={item.payment_type} color="primary" /></td>
                   <td style={{ padding: "9px 12px", fontWeight: 700, color: C.green }}>+{fmt(item.amount)}</td>
@@ -2808,9 +2810,9 @@ function ProfileDropdown({ currentUser, onUpdate, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 2000, display: "flex", alignItems: "flex-start", justifyContent: "flex-end", padding: "64px 24px 0" }} onClick={onClose}>
-      <div style={{ background: C.white, borderRadius: 16, width: 340, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", border: `1px solid ${C.gray200}`, overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: C.white, borderRadius: 16, width: 340, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", border: "1px solid " + C.gray200, overflow: "hidden" }} onClick={e => e.stopPropagation()}>
         {/* Profile Header */}
-        <div style={{ background: `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`, padding: "20px", textAlign: "center" }}>
+        <div style={{ background: "linear-gradient(135deg, " + C.primaryDark + ", " + C.primary + ")", padding: "20px", textAlign: "center" }}>
           <div style={{ width: 64, height: 64, borderRadius: "50%", margin: "0 auto 10px", overflow: "hidden", border: "3px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {imgPreview ? <img src={imgPreview} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 28, color: C.white, fontWeight: 700 }}>{currentUser?.name?.[0] || "R"}</span>}
           </div>
@@ -2819,9 +2821,9 @@ function ProfileDropdown({ currentUser, onUpdate, onClose }) {
           <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 3 }}>{currentUser?.role === "admin" ? "🔑 Admin" : "👷 Site Engineer"}</div>
         </div>
         {/* Tabs */}
-        <div style={{ display: "flex", borderBottom: `1px solid ${C.gray200}` }}>
+        <div style={{ display: "flex", borderBottom: "1px solid " + C.gray200 }}>
           {[["name", "👤 নাম"], ["password", "🔐 পাসওয়ার্ড"], ["photo", "🖼️ ছবি"]].map(([id, label]) => (
-            <button key={id} onClick={() => { setTab(id); setMsg(""); setError(""); }} style={{ flex: 1, padding: "10px 4px", border: "none", borderBottom: tab === id ? `2px solid ${C.primary}` : "2px solid transparent", background: "none", color: tab === id ? C.primaryDark : C.gray600, fontWeight: tab === id ? 700 : 400, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>{label}</button>
+            <button key={id} onClick={() => { setTab(id); setMsg(""); setError(""); }} style={{ flex: 1, padding: "10px 4px", border: "none", borderBottom: tab === id ? "2px solid " + C.primary : "2px solid transparent", background: "none", color: tab === id ? C.primaryDark : C.gray600, fontWeight: tab === id ? 700 : 400, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>{label}</button>
           ))}
         </div>
         <div style={{ padding: 20 }}>
@@ -2843,7 +2845,7 @@ function ProfileDropdown({ currentUser, onUpdate, onClose }) {
           )}
           {tab === "photo" && (
             <div style={{ textAlign: "center" }}>
-              <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 14px", overflow: "hidden", border: `3px solid ${C.primary}`, background: C.primaryBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 14px", overflow: "hidden", border: "3px solid " + C.primary, background: C.primaryBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {imgPreview ? <img src={imgPreview} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 36 }}>👤</span>}
               </div>
               <label style={{ display: "inline-block", background: C.primary, color: C.white, padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
@@ -2908,11 +2910,11 @@ function UserManagement() {
       <Card>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead><tr style={{ background: C.primaryBg }}>
-            {["নাম", "ইমেইল", "Role", "Assigned Projects", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: `2px solid ${C.primary}` }}>{h}</th>)}
+            {["নাম", "ইমেইল", "Role", "Assigned Projects", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}
           </tr></thead>
           <tbody>
             {users.map(u => (
-              <tr key={u.id} style={{ borderBottom: `1px solid ${C.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <tr key={u.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                 <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{u.name}</td>
                 <td style={{ padding: "10px 14px" }}>{u.email}</td>
                 <td style={{ padding: "10px 14px" }}><Badge label={u.role === "admin" ? "🔑 Admin" : "👷 Site Engineer"} color={u.role === "admin" ? "green" : "blue"} /></td>
@@ -2941,7 +2943,7 @@ function UserManagement() {
           <FormField label="Role"><select style={inputStyle} value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}><option value="site_engineer">👷 Site Engineer</option><option value="admin">🔑 Admin</option></select></FormField>
           {form.role === "site_engineer" && projects.length > 0 && (
             <FormField label="Assigned Projects (যে প্রজেক্টে access পাবে)">
-              <div style={{ border: `1px solid ${C.gray200}`, borderRadius: 8, padding: 12, maxHeight: 200, overflowY: "auto" }}>
+              <div style={{ border: "1px solid " + C.gray200, borderRadius: 8, padding: 12, maxHeight: 200, overflowY: "auto" }}>
                 {projects.map(p => (
                   <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }} onClick={() => toggleProject(p.id)}>
                     <input type="checkbox" checked={(form.assigned_projects || []).includes(p.id)} onChange={() => toggleProject(p.id)} style={{ accentColor: C.primary, width: 16, height: 16 }} />
@@ -3001,7 +3003,7 @@ export default function App() {
     <div style={{ display: "flex", minHeight: "100vh", background: C.gray50, fontFamily: "'Hind Siliguri', Arial, sans-serif" }}>
       {/* SIDEBAR */}
       <div style={{ width: sideOpen ? 230 : 60, background: C.primaryDark, display: "flex", flexDirection: "column", transition: "width 0.3s", flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflow: "hidden" }}>
-        <div style={{ padding: sideOpen ? "18px 18px 14px" : "18px 10px 14px", borderBottom: `1px solid rgba(255,255,255,0.1)` }}>
+        <div style={{ padding: sideOpen ? "18px 18px 14px" : "18px 10px 14px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <img src="https://jijxnycopycsysugppnw.supabase.co/storage/v1/object/public/Upload%20images/icon.png" alt="N" style={{ width: 36, height: 36, objectFit: "contain", flexShrink: 0 }} />
             {sideOpen && <div><div style={{ color: C.white, fontWeight: 900, fontSize: 15, letterSpacing: 1 }}>NOKSHA</div><div style={{ color: "rgba(255,255,255,0.5)", fontSize: 9, letterSpacing: 2 }}>INTERIOR & CONSTRUCTION</div></div>}
@@ -3009,7 +3011,7 @@ export default function App() {
         </div>
         <nav style={{ flex: 1, padding: "8px 0", overflowY: "auto" }}>
           {ALL_MENU.filter(m => m.roles.includes(currentUser?.role || "admin")).map(m => (
-            <button key={m.id} onClick={() => setActive(m.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: sideOpen ? "10px 18px" : "10px 0", justifyContent: sideOpen ? "flex-start" : "center", background: active === m.id ? `rgba(255,255,255,0.12)` : "none", border: "none", borderLeft: active === m.id ? `3px solid ${C.primaryLight}` : "3px solid transparent", color: active === m.id ? C.white : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12, fontWeight: active === m.id ? 700 : 400, fontFamily: "inherit", transition: "all 0.15s" }}>
+            <button key={m.id} onClick={() => setActive(m.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: sideOpen ? "10px 18px" : "10px 0", justifyContent: sideOpen ? "flex-start" : "center", background: active === m.id ? "rgba(255,255,255,0.12)" : "none", border: "none", borderLeft: active === m.id ? "3px solid " + C.primaryLight : "3px solid transparent", color: active === m.id ? C.white : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12, fontWeight: active === m.id ? 700 : 400, fontFamily: "inherit", transition: "all 0.15s" }}>
               <span style={{ fontSize: 16, flexShrink: 0 }}>{m.icon}</span>
               {sideOpen && <span style={{ whiteSpace: "nowrap", fontSize: 13 }}>{m.label}</span>}
             </button>
@@ -3025,16 +3027,16 @@ export default function App() {
 
       {/* MAIN */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ background: C.white, borderBottom: `1px solid ${C.gray200}`, padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 100, borderTop: `3px solid ${C.primary}` }}>
+        <div style={{ background: C.white, borderBottom: "1px solid " + C.gray200, padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 100, borderTop: "3px solid " + C.primary }}>
           <div>
             <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 16 }}>{ALL_MENU.find(m => m.id === active)?.label}</div>
             <div style={{ fontSize: 11, color: C.gray400 }}>Noksha Interior & Construction · ফরিদপুর & ঢাকা</div>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            {isAdmin && <button onClick={loadAll} style={{ background: C.primaryBg, border: `1px solid ${C.primaryLight}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, color: C.primaryDark, fontFamily: "inherit" }}>🔄 রিফ্রেশ</button>}
-            <button onClick={() => { const nl = lang === "bn" ? "en" : "bn"; setLang(nl); localStorage.setItem("nic_lang", nl); }} style={{ background: lang === "en" ? C.primaryDark : C.primaryBg, color: lang === "en" ? C.white : C.primaryDark, border: `1px solid ${C.primary}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>{lang === "bn" ? "EN" : "বাং"}</button>
+            {isAdmin && <button onClick={loadAll} style={{ background: C.primaryBg, border: "1px solid " + C.primaryLight, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, color: C.primaryDark, fontFamily: "inherit" }}>🔄 রিফ্রেশ</button>}
+            <button onClick={() => { const nl = lang === "bn" ? "en" : "bn"; setLang(nl); localStorage.setItem("nic_lang", nl); }} style={{ background: lang === "en" ? C.primaryDark : C.primaryBg, color: lang === "en" ? C.white : C.primaryDark, border: "1px solid " + C.primary, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>{lang === "bn" ? "EN" : "বাং"}</button>
             <div onClick={() => setShowProfile(p => !p)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "6px 10px", borderRadius: 10, background: showProfile ? C.primaryBg : "transparent", transition: "background 0.2s" }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", border: `2px solid ${C.primary}`, background: C.primaryBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", border: "2px solid " + C.primary, background: C.primaryBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 {localStorage.getItem("nic_profile_pic") ? <img src={localStorage.getItem("nic_profile_pic")} alt="P" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontWeight: 700, color: C.primary, fontSize: 14 }}>{currentUser?.name?.[0] || "R"}</span>}
               </div>
               <div style={{ fontSize: 12, color: C.gray600 }}>
