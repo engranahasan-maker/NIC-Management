@@ -53,6 +53,16 @@ const TXT = {
     quick_checkin: "দ্রুত চেক-ইন", not_marked: "চিহ্নিত হয়নি", mark: "চিহ্নিত করুন",
     refresh: "রিফ্রেশ", search_employee: "কর্মী খুঁজুন...", no_records: "কোনো রেকর্ড নেই",
     live: "লাইভ", employees_label: "জন কর্মী", of_total: "মোট এর মধ্যে",
+    my_attendance: "আমার হাজিরা", check_in: "চেক-ইন করুন", checked_in_at: "চেক-ইন সময়",
+    take_photo: "📸 ছবি তুলুন", retake: "🔄 আবার তুলুন", use_photo: "✅ ব্যবহার করুন",
+    capturing_location: "লোকেশন সংগ্রহ হচ্ছে...", location_captured: "লোকেশন সংগৃহীত",
+    view_location: "📍 লোকেশন দেখুন", work_update: "কাজের আপডেট",
+    next_update_in: "পরবর্তী আপডেট", give_update: "➕ আপডেট দিন", update_note_placeholder: "এই মুহূর্তে কী কাজ করছেন লিখুন...",
+    todays_updates: "আজকের আপডেটসমূহ", already_checked_in: "✅ আজ চেক-ইন সম্পন্ন হয়েছে",
+    camera_permission_note: "ক্যামেরা ও লোকেশন পারমিশন দিন", cancel: "বাতিল",
+    live_work_updates: "লাইভ কাজের আপডেট", no_updates_yet: "এখনো কোনো আপডেট নেই",
+    uploading: "আপলোড হচ্ছে...", link_employee: "কর্মীর সাথে লিংক করুন", select_employee: "কর্মী বাছাই করুন",
+    permissions_label: "কোন কোন Menu Access পাবে (টিক দিন)", role_employee: "👤 Employee",
   },
   en: {
     dashboard: "Dashboard", projects: "Projects", construction: "Construction Projects", interior: "Interior Projects",
@@ -66,6 +76,16 @@ const TXT = {
     quick_checkin: "Quick Check-in", not_marked: "Not marked", mark: "Mark",
     refresh: "Refresh", search_employee: "Search employee...", no_records: "No records yet",
     live: "Live", employees_label: "employees", of_total: "of total",
+    my_attendance: "My Attendance", check_in: "Check In", checked_in_at: "Checked in at",
+    take_photo: "📸 Take Photo", retake: "🔄 Retake", use_photo: "✅ Use Photo",
+    capturing_location: "Capturing location...", location_captured: "Location captured",
+    view_location: "📍 View Location", work_update: "Work Update",
+    next_update_in: "Next update in", give_update: "➕ Give Update", update_note_placeholder: "What are you working on right now...",
+    todays_updates: "Today's Updates", already_checked_in: "✅ Checked in for today",
+    camera_permission_note: "Allow camera & location permission", cancel: "Cancel",
+    live_work_updates: "Live Work Updates", no_updates_yet: "No updates yet",
+    uploading: "Uploading...", link_employee: "Link to Employee", select_employee: "Select employee",
+    permissions_label: "Menu Access (check to allow)", role_employee: "👤 Employee",
   },
 };
 
@@ -249,6 +269,83 @@ const uploadImage = async (file, folder) => {
   const { data: urlData } = supabase.storage.from("Upload images").getPublicUrl(fileName);
   return urlData.publicUrl;
 };
+
+// ============================================================
+// LOCATION + LIVE CAMERA CAPTURE UPLOAD (for attendance / work updates)
+// ============================================================
+const getLocation = () => new Promise((resolve) => {
+  if (!navigator.geolocation) return resolve(null);
+  navigator.geolocation.getCurrentPosition(
+    (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+    () => resolve(null),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
+
+const uploadCapturedPhoto = async (dataUrl, folder) => {
+  try {
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const fileName = folder + "/" + Date.now() + "_" + Math.random().toString(36).substr(2, 6) + ".jpg";
+    const { error } = await supabase.storage.from("Upload images").upload(fileName, blob, { cacheControl: "3600", upsert: true, contentType: "image/jpeg" });
+    if (error) { console.error(error); return null; }
+    const { data: urlData } = supabase.storage.from("Upload images").getPublicUrl(fileName);
+    return urlData.publicUrl;
+  } catch (e) { console.error(e); return null; }
+};
+
+function CameraCapture({ lang, onCapture, onCancel }) {
+  const T = TXT[lang];
+  const videoRef = useRef();
+  const streamRef = useRef();
+  const [snap, setSnap] = useState(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      } catch (e) { setErr(T.camera_permission_note); }
+    })();
+    return () => { streamRef.current?.getTracks().forEach(t => t.stop()); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const capture = () => {
+    const video = videoRef.current;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    setSnap(canvas.toDataURL("image/jpeg", 0.85));
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ background: C.white, borderRadius: 16, padding: 20, width: "100%", maxWidth: 420 }}>
+        {err ? (
+          <div style={{ color: C.red, fontSize: 13, textAlign: "center", padding: 20 }}>{err}</div>
+        ) : snap ? (
+          <img src={snap} alt="capture" style={{ width: "100%", borderRadius: 12, marginBottom: 14, transform: "scaleX(-1)" }} />
+        ) : (
+          <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", borderRadius: 12, marginBottom: 14, transform: "scaleX(-1)", background: "#000" }} />
+        )}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} style={{ ...btnEdit, flex: 1, textAlign: "center" }}>{T.cancel}</button>
+          {snap ? (
+            <>
+              <button onClick={() => setSnap(null)} style={{ ...btnEdit, flex: 1, textAlign: "center" }}>{T.retake}</button>
+              <button onClick={() => onCapture(snap)} style={{ ...btnPrimary, flex: 1, marginTop: 0 }}>{T.use_photo}</button>
+            </>
+          ) : (
+            !err && <button onClick={capture} style={{ ...btnPrimary, flex: 1, marginTop: 0 }}>{T.take_photo}</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ImageUploadField({ label, value, onChange, folder }) {
   const [uploading, setUploading] = useState(false);
@@ -940,12 +1037,15 @@ function SmartAttendance({ employees, lang }) {
   const T = TXT[lang];
   const today = new Date().toISOString().split("T")[0];
   const [rows, setRows] = useState([]);
+  const [workUpdates, setWorkUpdates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   const load = async () => {
     const { data } = await supabase.from("attendance").select("*").eq("date", today).order("id", { ascending: false });
     setRows(data || []);
+    const { data: wu } = await supabase.from("work_updates").select("*").eq("date", today).order("created_at", { ascending: false }).limit(20);
+    setWorkUpdates(wu || []);
     setLoading(false);
   };
 
@@ -953,6 +1053,7 @@ function SmartAttendance({ employees, lang }) {
     load();
     const channel = supabase.channel("attendance-live-" + today)
       .on("postgres_changes", { event: "*", schema: "public", table: "attendance", filter: `date=eq.${today}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "work_updates", filter: `date=eq.${today}` }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1065,12 +1166,19 @@ function SmartAttendance({ employees, lang }) {
                 const time = r.created_at ? new Date(r.created_at).toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: "2-digit", minute: "2-digit" }) : "—";
                 return (
                   <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, background: C.gray50 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.primaryBg, color: C.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-                      {(emp?.name || "?")[0]}
-                    </div>
+                    {r.photo_url ? (
+                      <img src={r.photo_url} alt="" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.primaryBg, color: C.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                        {(emp?.name || "?")[0]}
+                      </div>
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, color: C.primaryDark, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emp?.name || "—"}</div>
-                      <div style={{ fontSize: 11, color: C.gray600 }}>{time}</div>
+                      <div style={{ fontSize: 11, color: C.gray600, display: "flex", gap: 6, alignItems: "center" }}>
+                        <span>{time}</span>
+                        {r.lat && <a href={`https://www.google.com/maps?q=${r.lat},${r.lng}`} target="_blank" rel="noreferrer" style={{ color: C.blue, textDecoration: "none" }}>📍</a>}
+                      </div>
                     </div>
                     <span style={{ background: statusBg[key], color: statusColor[key], padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>{T[key]}</span>
                   </div>
@@ -1108,6 +1216,161 @@ function SmartAttendance({ employees, lang }) {
           </div>
         )}
       </Card>
+
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>🔴 {T.live_work_updates}</div>
+        {workUpdates.length === 0 ? (
+          <div style={{ color: C.gray400, textAlign: "center", padding: 16, fontSize: 13 }}>{T.no_updates_yet}</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>
+            {workUpdates.map(u => {
+              const emp = empById[u.employee_id];
+              const time = u.created_at ? new Date(u.created_at).toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: "2-digit", minute: "2-digit" }) : "—";
+              return (
+                <div key={u.id} style={{ border: "1px solid " + C.gray200, borderRadius: 10, padding: 10, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  {u.photo_url ? <img src={u.photo_url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} /> : <div style={{ width: 40, height: 40, borderRadius: 8, background: C.primaryBg, flexShrink: 0 }} />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
+                      <span style={{ fontWeight: 600, fontSize: 12, color: C.primaryDark, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emp?.name || "—"}</span>
+                      <span style={{ fontSize: 11, color: C.gray600, flexShrink: 0 }}>{time}</span>
+                    </div>
+                    {u.note && <div style={{ fontSize: 11, color: C.gray800, marginTop: 3 }}>{u.note}</div>}
+                    {u.lat && <a href={`https://www.google.com/maps?q=${u.lat},${u.lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: C.blue }}>{T.view_location}</a>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// MY ATTENDANCE (Employee self check-in + 15-min work updates)
+// ============================================================
+function MyAttendance({ currentUser, lang }) {
+  const T = TXT[lang];
+  const today = new Date().toISOString().split("T")[0];
+  const [employee, setEmployee] = useState(null);
+  const [todayAtt, setTodayAtt] = useState(null);
+  const [updates, setUpdates] = useState([]);
+  const [showCamera, setShowCamera] = useState(false); // false | 'checkin' | 'update'
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const load = async () => {
+    if (!currentUser?.employee_id) return;
+    const { data: emp } = await supabase.from("employees").select("*").eq("id", currentUser.employee_id).single();
+    setEmployee(emp || null);
+    const { data: att } = await supabase.from("attendance").select("*").eq("employee_id", currentUser.employee_id).eq("date", today).single();
+    setTodayAtt(att || null);
+    const { data: upd } = await supabase.from("work_updates").select("*").eq("employee_id", currentUser.employee_id).eq("date", today).order("created_at", { ascending: false });
+    setUpdates(upd || []);
+  };
+
+  useEffect(() => {
+    load();
+    if (!currentUser?.employee_id) return;
+    const channel = supabase.channel("my-att-" + currentUser.employee_id)
+      .on("postgres_changes", { event: "*", schema: "public", table: "work_updates", filter: `employee_id=eq.${currentUser.employee_id}` }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.employee_id]);
+
+  const doCheckIn = async (photoDataUrl) => {
+    setBusy(true); setShowCamera(false);
+    const loc = await getLocation();
+    const photoUrl = await uploadCapturedPhoto(photoDataUrl, "attendance");
+    await supabase.from("attendance").insert([{ employee_id: currentUser.employee_id, date: today, status: "উপস্থিত", photo_url: photoUrl, lat: loc?.lat || null, lng: loc?.lng || null, check_in_time: new Date().toISOString() }]);
+    await load(); setBusy(false);
+  };
+
+  const doWorkUpdate = async (photoDataUrl) => {
+    setBusy(true); setShowCamera(false);
+    const loc = await getLocation();
+    const photoUrl = await uploadCapturedPhoto(photoDataUrl, "work-updates");
+    await supabase.from("work_updates").insert([{ employee_id: currentUser.employee_id, date: today, note, photo_url: photoUrl, lat: loc?.lat || null, lng: loc?.lng || null }]);
+    setNote(""); await load(); setBusy(false);
+  };
+
+  if (!currentUser?.employee_id) {
+    return <Card><div style={{ textAlign: "center", padding: 30, color: C.gray600, fontSize: 13 }}>⚠️ আপনার অ্যাকাউন্ট কোনো Employee রেকর্ডের সাথে লিংক করা নেই। Admin-কে User Management থেকে লিংক করতে বলুন।</div></Card>;
+  }
+
+  const lastActivity = updates[0]?.created_at || todayAtt?.check_in_time || todayAtt?.created_at;
+  let nextInSec = null;
+  if (lastActivity) {
+    const diff = 15 * 60 - Math.floor((nowTick - new Date(lastActivity).getTime()) / 1000);
+    nextInSec = Math.max(diff, 0);
+  }
+  const mm = nextInSec != null ? String(Math.floor(nextInSec / 60)).padStart(2, "0") : "--";
+  const ss = nextInSec != null ? String(nextInSec % 60).padStart(2, "0") : "--";
+
+  return (
+    <div>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: C.primaryDark }}>{T.good_morning}, {employee?.name || "..."}</div>
+        <div style={{ fontSize: 12, color: C.gray400 }}>{new Date().toLocaleDateString(lang === "bn" ? "bn-BD" : "en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
+      </div>
+
+      {!todayAtt ? (
+        <Card style={{ textAlign: "center", padding: 30 }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>🙋</div>
+          <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 16, fontSize: 16 }}>{T.check_in}</div>
+          <button disabled={busy} onClick={() => setShowCamera("checkin")} style={{ ...btnPrimary, maxWidth: 260, margin: "0 auto" }}>{busy ? T.uploading : "📸 " + T.check_in}</button>
+        </Card>
+      ) : (
+        <>
+          <Card style={{ marginBottom: 16, display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+            {todayAtt.photo_url && <img src={todayAtt.photo_url} alt="checkin" style={{ width: 70, height: 70, borderRadius: 12, objectFit: "cover" }} />}
+            <div style={{ flex: 1 }}>
+              <div style={{ color: C.green, fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{T.already_checked_in}</div>
+              <div style={{ fontSize: 12, color: C.gray600 }}>{T.checked_in_at}: {new Date(todayAtt.check_in_time || todayAtt.created_at || Date.now()).toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
+              {todayAtt.lat && <a href={`https://www.google.com/maps?q=${todayAtt.lat},${todayAtt.lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.blue }}>{T.view_location}</a>}
+            </div>
+          </Card>
+
+          <Card>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 15 }}>{T.work_update}</div>
+              <div style={{ fontSize: 12, color: C.gray600 }}>{T.next_update_in}: <strong style={{ color: C.primaryDark }}>{mm}:{ss}</strong></div>
+            </div>
+            <textarea value={note} onChange={e => setNote(e.target.value)} placeholder={T.update_note_placeholder} style={{ ...inputStyle, minHeight: 60, resize: "vertical", marginBottom: 10 }} />
+            <button disabled={busy} onClick={() => setShowCamera("update")} style={{ ...btnPrimary, marginTop: 0 }}>{busy ? T.uploading : T.give_update}</button>
+
+            {updates.length > 0 && (
+              <div style={{ marginTop: 18, borderTop: "1px solid " + C.gray100, paddingTop: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.primaryDark, marginBottom: 10 }}>{T.todays_updates}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 320, overflowY: "auto" }}>
+                  {updates.map(u => (
+                    <div key={u.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", background: C.gray50, borderRadius: 10, padding: 10 }}>
+                      {u.photo_url && <img src={u.photo_url} alt="update" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 11, color: C.gray600, marginBottom: 2 }}>{new Date(u.created_at).toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
+                        {u.note && <div style={{ fontSize: 12, color: C.gray800 }}>{u.note}</div>}
+                        {u.lat && <a href={`https://www.google.com/maps?q=${u.lat},${u.lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: C.blue }}>{T.view_location}</a>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {showCamera && (
+        <CameraCapture lang={lang} onCancel={() => setShowCamera(false)} onCapture={(img) => showCamera === "checkin" ? doCheckIn(img) : doWorkUpdate(img)} />
+      )}
     </div>
   );
 }
@@ -2436,6 +2699,7 @@ const ALL_MENU = [
   { id: "employees", icon: "👷", label: "কর্মী (HR)", roles: ["admin"] },
   { id: "attendance", icon: "📋", label: "উপস্থিতি", roles: ["admin"] },
   { id: "smart_attendance", icon: "⏱️", label: "স্মার্ট অ্যাটেন্ডেন্স", roles: ["admin"] },
+  { id: "my_attendance", icon: "🙋", label: "আমার হাজিরা", roles: ["admin", "employee"] },
   { id: "finance", icon: "💰", label: "আর্থিক", roles: ["admin"] },
   { id: "site", icon: "📍", label: "সাইট প্রগ্রেস", roles: ["admin"] },
   { id: "materials", icon: "📦", label: "সামগ্রী", roles: ["admin"] },
@@ -3094,12 +3358,14 @@ function ProfileDropdown({ currentUser, onUpdate, onClose }) {
 // ============================================================
 // USER MANAGEMENT (Admin only)
 // ============================================================
-function UserManagement() {
+function UserManagement({ employees, lang }) {
+  const T = TXT[lang || "bn"];
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ name: "", email: "", password_hash: "", role: "site_engineer", assigned_projects: [], is_active: true });
+  const blankForm = { name: "", email: "", password_hash: "", role: "site_engineer", assigned_projects: [], employee_id: "", permissions: [], is_active: true };
+  const [form, setForm] = useState(blankForm);
 
   useEffect(() => { loadUsers(); loadProjects(); }, []);
   const loadUsers = async () => { const { data } = await supabase.from("app_users").select("*").order("created_at"); setUsers(data || []); };
@@ -3107,10 +3373,11 @@ function UserManagement() {
 
   const save = async () => {
     if (!form.name || !form.email || !form.password_hash) return alert("নাম, ইমেইল ও পাসওয়ার্ড আবশ্যক");
+    const payload = { ...form, employee_id: form.employee_id || null };
     if (editItem) {
-      await supabase.from("app_users").update({ ...form }).eq("id", editItem.id);
+      await supabase.from("app_users").update(payload).eq("id", editItem.id);
     } else {
-      const { error } = await supabase.from("app_users").insert([{ ...form }]);
+      const { error } = await supabase.from("app_users").insert([payload]);
       if (error) return alert("Error: " + error.message);
     }
     await loadUsers(); setShowModal(false); setEditItem(null);
@@ -3134,27 +3401,39 @@ function UserManagement() {
     });
   };
 
+  const togglePermission = (menuId) => {
+    setForm(f => {
+      const arr = f.permissions || [];
+      return { ...f, permissions: arr.includes(menuId) ? arr.filter(x => x !== menuId) : [...arr, menuId] };
+    });
+  };
+
+  const roleLabel = { admin: "🔑 Admin", site_engineer: "👷 Site Engineer", employee: T.role_employee };
+  const roleColor = { admin: "green", site_engineer: "blue", employee: "primary" };
+
   return (
     <div>
-      <SectionHeader title="👤 User Management" action="নতুন User" onAction={() => { setEditItem(null); setForm({ name: "", email: "", password_hash: "", role: "site_engineer", assigned_projects: [], is_active: true }); setShowModal(true); }} />
+      <SectionHeader title="👤 User Management" action="নতুন User" onAction={() => { setEditItem(null); setForm(blankForm); setShowModal(true); }} />
       <Card>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead><tr style={{ background: C.primaryBg }}>
-            {["নাম", "ইমেইল", "Role", "Assigned Projects", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}
+            {["নাম", "ইমেইল", "Role", "বিস্তারিত", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}
           </tr></thead>
           <tbody>
             {users.map(u => (
               <tr key={u.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                 <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{u.name}</td>
                 <td style={{ padding: "10px 14px" }}>{u.email}</td>
-                <td style={{ padding: "10px 14px" }}><Badge label={u.role === "admin" ? "🔑 Admin" : "👷 Site Engineer"} color={u.role === "admin" ? "green" : "blue"} /></td>
+                <td style={{ padding: "10px 14px" }}><Badge label={roleLabel[u.role] || u.role} color={roleColor[u.role] || "gray"} /></td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600 }}>
-                  {u.role === "admin" ? "সব প্রজেক্ট" : (u.assigned_projects?.length > 0 ? projects.filter(p => u.assigned_projects.includes(p.id)).map(p => p.name).join(", ") : "কোনো প্রজেক্ট নেই")}
+                  {u.role === "admin" ? "সব প্রজেক্ট" :
+                   u.role === "site_engineer" ? (u.assigned_projects?.length > 0 ? projects.filter(p => u.assigned_projects.includes(p.id)).map(p => p.name).join(", ") : "কোনো প্রজেক্ট নেই") :
+                   (u.permissions?.length > 0 ? u.permissions.map(id => TXT[lang || "bn"][id] || id).join(", ") : "কোনো Access নেই")}
                 </td>
                 <td style={{ padding: "10px 14px" }}><Badge label={u.is_active ? "✅ সক্রিয়" : "❌ নিষ্ক্রিয়"} color={u.is_active ? "green" : "red"} /></td>
                 <td style={{ padding: "10px 14px" }}>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => { setEditItem(u); setForm({ ...u, password_hash: "" }); setShowModal(true); }} style={btnEdit}>✏️</button>
+                    <button onClick={() => { setEditItem(u); setForm({ ...blankForm, ...u, password_hash: "", employee_id: u.employee_id || "", permissions: u.permissions || [] }); setShowModal(true); }} style={btnEdit}>✏️</button>
                     <button onClick={() => toggleActive(u)} style={{ ...btnEdit, background: u.is_active ? C.yellowLight : C.greenLight }}>{u.is_active ? "⏸️" : "▶️"}</button>
                     {u.role !== "admin" && <button onClick={() => del(u.id)} style={btnDanger}>🗑️</button>}
                   </div>
@@ -3167,10 +3446,17 @@ function UserManagement() {
 
       {showModal && (
         <Modal title={editItem ? "User সম্পাদনা" : "নতুন User তৈরি করুন"} onClose={() => { setShowModal(false); setEditItem(null); }} size={520}>
-          <FormField label="পূর্ণ নাম *"><input style={inputStyle} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="ইঞ্জিনিয়ারের নাম" /></FormField>
-          <FormField label="ইমেইল *"><input style={inputStyle} type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="engineer@noksha.com" /></FormField>
+          <FormField label="পূর্ণ নাম *"><input style={inputStyle} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="নাম" /></FormField>
+          <FormField label="ইমেইল *"><input style={inputStyle} type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="user@noksha.com" /></FormField>
           <FormField label={editItem ? "নতুন পাসওয়ার্ড (পরিবর্তন করতে চাইলে)" : "পাসওয়ার্ড *"}><input style={inputStyle} type="text" value={form.password_hash} onChange={e => setForm({ ...form, password_hash: e.target.value })} placeholder="password123" /></FormField>
-          <FormField label="Role"><select style={inputStyle} value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}><option value="site_engineer">👷 Site Engineer</option><option value="admin">🔑 Admin</option></select></FormField>
+          <FormField label="Role">
+            <select style={inputStyle} value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
+              <option value="site_engineer">👷 Site Engineer</option>
+              <option value="admin">🔑 Admin</option>
+              <option value="employee">{T.role_employee}</option>
+            </select>
+          </FormField>
+
           {form.role === "site_engineer" && projects.length > 0 && (
             <FormField label="Assigned Projects (যে প্রজেক্টে access পাবে)">
               <div style={{ border: "1px solid " + C.gray200, borderRadius: 8, padding: 12, maxHeight: 200, overflowY: "auto" }}>
@@ -3183,6 +3469,28 @@ function UserManagement() {
               </div>
             </FormField>
           )}
+
+          {form.role === "employee" && (
+            <>
+              <FormField label={T.link_employee}>
+                <select style={inputStyle} value={form.employee_id} onChange={e => setForm({ ...form, employee_id: e.target.value })}>
+                  <option value="">— {T.select_employee} —</option>
+                  {(employees || []).map(emp => <option key={emp.id} value={emp.id}>{emp.name} — {emp.dept}</option>)}
+                </select>
+              </FormField>
+              <FormField label={T.permissions_label}>
+                <div style={{ border: "1px solid " + C.gray200, borderRadius: 8, padding: 12, maxHeight: 220, overflowY: "auto" }}>
+                  {ALL_MENU.map(m => (
+                    <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }} onClick={() => togglePermission(m.id)}>
+                      <input type="checkbox" checked={(form.permissions || []).includes(m.id)} onChange={() => togglePermission(m.id)} style={{ accentColor: C.primary, width: 16, height: 16 }} />
+                      <span style={{ fontSize: 13 }}>{m.icon} {TXT[lang || "bn"][m.id] || m.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </FormField>
+            </>
+          )}
+
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
             <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} style={{ accentColor: C.primary, width: 16, height: 16 }} />
             <label style={{ fontSize: 13, fontWeight: 600, color: C.gray800 }}>সক্রিয় করুন</label>
@@ -3227,7 +3535,7 @@ export default function App() {
 
   const logout = () => { localStorage.removeItem("nic_logged_in"); localStorage.removeItem("nic_user"); setLoggedIn(false); setCurrentUser(null); };
 
-  if (!loggedIn) return <LoginPage onLogin={(user) => { setCurrentUser(user); setLoggedIn(true); if (user.role === "site_engineer") setActive("construction"); }} />;
+  if (!loggedIn) return <LoginPage onLogin={(user) => { setCurrentUser(user); setLoggedIn(true); if (user.role === "site_engineer") setActive("construction"); if (user.role === "employee") setActive("my_attendance"); }} />;
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.gray50, fontFamily: "'Hind Siliguri', Arial, sans-serif" }}>
@@ -3240,7 +3548,7 @@ export default function App() {
           </div>
         </div>
         <nav style={{ flex: 1, padding: "8px 0", overflowY: "auto" }}>
-          {ALL_MENU.filter(m => m.roles.includes(currentUser?.role || "admin")).map(m => (
+          {ALL_MENU.filter(m => currentUser?.role === "employee" ? (currentUser.permissions || []).includes(m.id) : m.roles.includes(currentUser?.role || "admin")).map(m => (
             <button key={m.id} onClick={() => setActive(m.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: sideOpen ? "10px 18px" : "10px 0", justifyContent: sideOpen ? "flex-start" : "center", background: active === m.id ? "rgba(255,255,255,0.12)" : "none", border: "none", borderLeft: active === m.id ? "3px solid " + C.primaryLight : "3px solid transparent", color: active === m.id ? C.white : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12, fontWeight: active === m.id ? 700 : 400, fontFamily: "inherit", transition: "all 0.15s" }}>
               <span style={{ fontSize: 16, flexShrink: 0 }}>{m.icon}</span>
               {sideOpen && <span style={{ whiteSpace: "nowrap", fontSize: 13 }}>{TXT[lang][m.id] || m.label}</span>}
@@ -3271,7 +3579,7 @@ export default function App() {
               </div>
               <div style={{ fontSize: 12, color: C.gray600 }}>
                 <div style={{ fontWeight: 600, color: C.primaryDark }}>{currentUser?.name || "মোঃ রানা"}</div>
-                <div>{currentUser?.role === "admin" ? "Admin" : "Site Engineer"}</div>
+                <div>{currentUser?.role === "admin" ? "Admin" : currentUser?.role === "employee" ? TXT[lang].role_employee : "Site Engineer"}</div>
               </div>
               <span style={{ fontSize: 10, color: C.gray400 }}>▼</span>
             </div>
@@ -3296,11 +3604,12 @@ export default function App() {
               {active === "employees" && isAdmin && <Employees data={data.employees} onRefresh={loadAll} />}
               {active === "attendance" && isAdmin && <Attendance employees={data.employees} />}
               {active === "smart_attendance" && isAdmin && <SmartAttendance employees={data.employees} lang={lang} />}
+              {active === "my_attendance" && (isAdmin || currentUser?.role === "employee") && <MyAttendance currentUser={currentUser} lang={lang} />}
               {active === "finance" && isAdmin && <Finance data={data.transactions} onRefresh={loadAll} />}
               {active === "site" && isAdmin && <SiteProgress data={data.siteProgress} projects={data.projects} onRefresh={loadAll} />}
               {active === "materials" && isAdmin && <Materials data={data.materials} onRefresh={loadAll} />}
               {active === "analytics" && isAdmin && <Analytics transactions={data.transactions} projects={data.projects} employees={data.employees} />}
-              {active === "users" && isAdmin && <UserManagement />}
+              {active === "users" && isAdmin && <UserManagement employees={data.employees} lang={lang} />}
               {active === "password" && <PasswordChange />}
             </>
           )}
