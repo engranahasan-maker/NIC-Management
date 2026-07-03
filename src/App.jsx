@@ -62,7 +62,7 @@ const numToWordsTaka = (num) => {
 const TXT = {
   bn: {
     dashboard: "ড্যাশবোর্ড", projects: "প্রজেক্ট", construction: "Construction Projects", interior: "Interior Projects",
-    boq: "BOQ সিস্টেম", clients: "ক্লায়েন্ট", employees: "কর্মী (HR)", attendance: "উপস্থিতি",
+    boq: "Estimate Project", clients: "ক্লায়েন্ট", employees: "কর্মী (HR)", attendance: "উপস্থিতি",
     smart_attendance: "স্মার্ট অ্যাটেন্ডেন্স", finance: "আর্থিক", site: "সাইট প্রগ্রেস", materials: "সামগ্রী",
     analytics: "রিপোর্ট & Analytics", users: "User Management", password: "পাসওয়ার্ড",
     good_morning: "শুভ সকাল", have_productive_day: "আপনার দিনটি প্রোডাক্টিভ হোক!",
@@ -87,7 +87,7 @@ const TXT = {
   },
   en: {
     dashboard: "Dashboard", projects: "Projects", construction: "Construction Projects", interior: "Interior Projects",
-    boq: "BOQ System", clients: "Clients", employees: "Personnel (HR)", attendance: "Attendance",
+    boq: "Estimate Project", clients: "Clients", employees: "Personnel (HR)", attendance: "Attendance",
     smart_attendance: "Smart Attendance", finance: "Financial", site: "Site Progress", materials: "Materials",
     analytics: "Reports & Analytics", users: "User Management", password: "Password",
     good_morning: "Good Morning", have_productive_day: "Have a productive day!",
@@ -1243,262 +1243,18 @@ function Invoices({ clients }) {
 // ============================================================
 // DOCUMENTS HUB (Money Receipt + Invoice)
 // ============================================================
-// ============================================================
-// ============================================================
-// QUOTATION / ESTIMATE (BOQ-style: rooms, payment terms, exclusions, T&C)
-// ============================================================
-function Quotations({ clients }) {
-  const [quotes, setQuotes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [printRow, setPrintRow] = useState(null);
-  const blankItem = () => ({ room: "Master Bedroom", code_no: "", item_no: 1, work_description: "", specification: "", unit: "sft", quantity: "", rate: "" });
-  const blankPaymentTerms = () => [
-    { label: "1st installment (before work starts)", percent: 50 },
-    { label: "2nd installment (during work)", percent: 40 },
-    { label: "3rd installment (on completion of work)", percent: 10 },
-  ];
-  const blankForm = () => ({
-    client_id: "", title: "Interior Design Estimate", work_type: "Interior", location: "",
-    quote_date: new Date().toISOString().split("T")[0],
-    items: [blankItem()], delivery_charge: 0,
-    payment_terms: blankPaymentTerms(),
-    exclusions: "Civil works\nElectrical main wiring\nPlumbing main line\nFurniture (existing)\nAC & installation",
-    terms_conditions: "Payment as per schedule\nWork starts after 1st installment\nExtra work charged separately\nMaterials as per specification",
-  });
-  const [form, setForm] = useState(blankForm());
-
-  const load = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.from("quotations").select("*").order("created_at", { ascending: false });
-    if (error) { console.error(error); setLoading(false); return; }
-    setQuotes(data || []);
-    setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
-
-  const clientById = {}; clients.forEach(c => { clientById[c.id] = c; });
-  const amountOf = (it) => (+it.quantity || 0) * (+it.rate || 0);
-  const grandTotalOf = (items) => (items || []).reduce((s, it) => s + amountOf(it), 0);
-  const subTotalOf = (q) => grandTotalOf(q.items) + (+q.delivery_charge || 0);
-
-  const updateItem = (i, field, val) => { const next = form.items.slice(); next[i] = { ...next[i], [field]: val }; setForm({ ...form, items: next }); };
-  const addItem = () => setForm({ ...form, items: [...form.items, blankItem()] });
-  const removeItem = (i) => setForm({ ...form, items: form.items.filter((_, idx) => idx !== i) });
-
-  const updatePT = (i, field, val) => { const next = form.payment_terms.slice(); next[i] = { ...next[i], [field]: val }; setForm({ ...form, payment_terms: next }); };
-  const addPT = () => setForm({ ...form, payment_terms: [...form.payment_terms, { label: "", percent: 0 }] });
-  const removePT = (i) => setForm({ ...form, payment_terms: form.payment_terms.filter((_, idx) => idx !== i) });
-
-  const save = async () => {
-    if (!form.client_id || !form.title) return alert("ক্লায়েন্ট ও শিরোনাম আবশ্যক");
-    const grand_total = grandTotalOf(form.items);
-    const payload = {
-      ...form,
-      quote_date: form.quote_date || null,
-      delivery_charge: +form.delivery_charge || 0,
-      total: grand_total,
-      exclusions: form.exclusions ? form.exclusions.split("\n").filter(Boolean) : [],
-      terms_conditions: form.terms_conditions ? form.terms_conditions.split("\n").filter(Boolean) : [],
-    };
-    const { error } = await supabase.from("quotations").insert([payload]);
-    if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
-    setShowModal(false); setForm(blankForm()); load();
-  };
-
-  const del = async (id) => { if (!confirm("এই Quotation মুছবেন?")) return; await supabase.from("quotations").delete().eq("id", id); load(); };
-  const doPrint = (q) => { setPrintRow(q); setTimeout(() => printSection(q.title, "quote-print", q.quote_date), 100); };
-
-  const roomGroupsOf = (items) => (items || []).reduce((acc, it) => { const r = it.room || "General"; if (!acc[r]) acc[r] = []; acc[r].push(it); return acc; }, {});
-
-  return (
-    <div>
-      <SectionHeader title="📋 Quotation / Estimate" action="নতুন Quotation" onAction={() => setShowModal(true)} />
-      <Card>
-        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : quotes.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো Quotation তৈরি হয়নি</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["শিরোনাম", "ক্লায়েন্ট", "ধরন", "মোট", "তারিখ", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
-            <tbody>
-              {quotes.map(q => (
-                <tr key={q.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
-                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{q.title}</td>
-                  <td style={{ padding: "10px 14px" }}>{clientById[q.client_id]?.name || "—"}</td>
-                  <td style={{ padding: "10px 14px" }}><Badge label={q.work_type} color="primary" /></td>
-                  <td style={{ padding: "10px 14px", fontWeight: 700, color: C.green }}>{fmt(subTotalOf(q))}</td>
-                  <td style={{ padding: "10px 14px" }}>{q.quote_date}</td>
-                  <td style={{ padding: "10px 14px" }}><div style={{ display: "flex", gap: 6 }}><button onClick={() => doPrint(q)} style={btnEdit}>🖨️</button><button onClick={() => del(q.id)} style={btnDanger}>🗑️</button></div></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
-
-      {showModal && (
-        <Modal title="নতুন Quotation / Estimate" onClose={() => setShowModal(false)} size={800}>
-          <FormField label="ক্লায়েন্ট *">
-            <select style={inputStyle} value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })}>
-              <option value="">— বাছাই করুন —</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </FormField>
-          <FormField label="শিরোনাম (Title) *"><input style={inputStyle} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></FormField>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <FormField label="ধরন"><select style={inputStyle} value={form.work_type} onChange={e => setForm({ ...form, work_type: e.target.value })}><option>Interior</option><option>Construction</option></select></FormField>
-            <FormField label="তারিখ"><input type="date" style={inputStyle} value={form.quote_date} onChange={e => setForm({ ...form, quote_date: e.target.value })} /></FormField>
-          </div>
-          <FormField label="Location"><input style={inputStyle} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} /></FormField>
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.primaryDark }}>BOQ Items (রুম অনুযায়ী)</div>
-              <button onClick={addItem} style={{ ...btnEdit, padding: "4px 10px", fontSize: 11 }}>➕ লাইন যোগ করুন</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 320, overflowY: "auto" }}>
-              {form.items.map((it, i) => (
-                <div key={i} style={{ border: "1px solid " + C.gray200, borderRadius: 8, padding: 10 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr 0.5fr 30px", gap: 6, marginBottom: 6 }}>
-                    <input value={it.room} onChange={e => updateItem(i, "room", e.target.value)} placeholder="Room (Master Bedroom)" style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
-                    <input value={it.code_no} onChange={e => updateItem(i, "code_no", e.target.value)} placeholder="Code No (C1)" style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
-                    <input type="number" value={it.item_no} onChange={e => updateItem(i, "item_no", e.target.value)} placeholder="Item No" style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
-                    <button onClick={() => removeItem(i)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer" }}>🗑️</button>
-                  </div>
-                  <input value={it.work_description} onChange={e => updateItem(i, "work_description", e.target.value)} placeholder="Work Description (Ceiling Work)" style={{ ...inputStyle, padding: "6px 8px", fontSize: 12, marginBottom: 6, fontWeight: 600 }} />
-                  <textarea value={it.specification} onChange={e => updateItem(i, "specification", e.target.value)} placeholder="Specification (details, one per line)" style={{ ...inputStyle, minHeight: 40, fontSize: 12, marginBottom: 6 }} />
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-                    <input value={it.unit} onChange={e => updateItem(i, "unit", e.target.value)} placeholder="Unit (sft)" style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
-                    <input type="number" value={it.quantity} onChange={e => updateItem(i, "quantity", e.target.value)} placeholder="Quantity" style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
-                    <input type="number" value={it.rate} onChange={e => updateItem(i, "rate", e.target.value)} placeholder="Rate" style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
-                  </div>
-                  <div style={{ fontSize: 11, color: C.gray600, marginTop: 4, textAlign: "right" }}>Amount: {fmt(amountOf(it))}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <FormField label="Delivery Charge (৳)"><input type="number" style={inputStyle} value={form.delivery_charge} onChange={e => setForm({ ...form, delivery_charge: e.target.value })} /></FormField>
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.primaryDark }}>Payment Terms</div>
-              <button onClick={addPT} style={{ ...btnEdit, padding: "4px 10px", fontSize: 11 }}>➕ যোগ করুন</button>
-            </div>
-            {form.payment_terms.map((pt, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 100px 30px", gap: 6, marginBottom: 6 }}>
-                <input value={pt.label} onChange={e => updatePT(i, "label", e.target.value)} style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
-                <input type="number" value={pt.percent} onChange={e => updatePT(i, "percent", e.target.value)} placeholder="%" style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
-                <button onClick={() => removePT(i)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer" }}>🗑️</button>
-              </div>
-            ))}
-          </div>
-
-          <FormField label="Exclusions (not included in BOQ) — এক লাইনে একটা"><textarea style={{ ...inputStyle, minHeight: 80 }} value={form.exclusions} onChange={e => setForm({ ...form, exclusions: e.target.value })} /></FormField>
-          <FormField label="Terms & Conditions — এক লাইনে একটা"><textarea style={{ ...inputStyle, minHeight: 80 }} value={form.terms_conditions} onChange={e => setForm({ ...form, terms_conditions: e.target.value })} /></FormField>
-
-          <div style={{ fontSize: 15, fontWeight: 700, color: C.primaryDark, marginBottom: 14, padding: "10px 14px", background: C.primaryBg, borderRadius: 8 }}>
-            Grand Total: {fmt(grandTotalOf(form.items))} + Delivery {fmt(form.delivery_charge)} = {fmt(grandTotalOf(form.items) + (+form.delivery_charge || 0))}
-          </div>
-          <button onClick={save} style={btnPrimary}>✅ তৈরি করুন</button>
-        </Modal>
-      )}
-
-      <div style={{ display: "none" }}>
-        <div id="quote-print">
-          {printRow && (() => {
-            const roomGroups = roomGroupsOf(printRow.items);
-            const grandTotal = grandTotalOf(printRow.items);
-            const delivery = +printRow.delivery_charge || 0;
-            const subTotal = grandTotal + delivery;
-            return (
-              <div>
-                <div style={{ fontSize: "9pt", lineHeight: 1.8, marginBottom: 14 }}>
-                  <div><strong>Client Name</strong>: {clientById[printRow.client_id]?.name}</div>
-                  <div><strong>{printRow.work_type} Type:</strong> {printRow.work_type}</div>
-                  {printRow.location && <div><strong>Location:</strong> {printRow.location}</div>}
-                </div>
-
-                {Object.entries(roomGroups).map(([room, items]) => {
-                  const roomTotal = items.reduce((s, it) => s + amountOf(it), 0);
-                  return (
-                    <div key={room} style={{ marginBottom: 14 }}>
-                      <div style={{ background: "#3F5F45", color: "white", padding: "6px 12px", fontWeight: 700, fontSize: "9pt" }}>{room}</div>
-                      <table>
-                        <thead><tr><th>Code No.</th><th>Item No.</th><th>Work Description & Specification</th><th>Unit</th><th>Quantity</th><th>Rate (৳)</th><th>Amount (৳)</th></tr></thead>
-                        <tbody>
-                          {items.map((it, i) => (
-                            <tr key={i}>
-                              <td style={{ textAlign: "center" }}>{it.code_no}</td>
-                              <td style={{ textAlign: "center" }}>{it.item_no}</td>
-                              <td style={{ textAlign: "left" }}><strong>{it.work_description}</strong>{it.specification ? <div style={{ whiteSpace: "pre-line", fontSize: "8pt", color: "#555" }}>{it.specification}</div> : null}</td>
-                              <td style={{ textAlign: "center" }}>{it.unit}</td>
-                              <td style={{ textAlign: "center" }}>{fmt(it.quantity)}</td>
-                              <td style={{ textAlign: "right" }}>{fmt(it.rate)}</td>
-                              <td style={{ textAlign: "right" }}>{fmt(amountOf(it))}</td>
-                            </tr>
-                          ))}
-                          <tr style={{ background: "#F0F7F0" }}><td colSpan={6} style={{ textAlign: "right", fontWeight: 700 }}>Sub Total ( {room} ):</td><td style={{ textAlign: "right", fontWeight: 700 }}>{fmt(roomTotal)}</td></tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })}
-
-                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-                  <table style={{ width: 320 }}>
-                    <tbody>
-                      <tr><td style={{ fontWeight: 700 }}>Grand Total:</td><td style={{ textAlign: "right" }}>{fmt(grandTotal)}</td></tr>
-                      <tr><td style={{ fontWeight: 700 }}>Delivery Charge:</td><td style={{ textAlign: "right" }}>{fmt(delivery)}</td></tr>
-                      <tr style={{ background: "#F0F7F0" }}><td style={{ fontWeight: 700, fontSize: "10pt" }}>Subtotal:</td><td style={{ textAlign: "right", fontWeight: 700, fontSize: "10pt" }}>{fmt(subTotal)}</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {(printRow.payment_terms || []).length > 0 && (
-                  <div style={{ marginBottom: 16, fontSize: "8.5pt" }}>
-                    <div style={{ fontWeight: 700, marginBottom: 4 }}>Payment Terms:</div>
-                    {printRow.payment_terms.map((pt, i) => (
-                      <div key={i}>• {pt.label}: {pt.percent}% = ৳ {fmt(subTotal * (+pt.percent || 0) / 100)}</div>
-                    ))}
-                  </div>
-                )}
-
-                {(printRow.exclusions || []).length > 0 && (
-                  <div style={{ background: "#FFF8E1", border: "1px solid #C9A84C", borderRadius: 6, padding: 10, marginBottom: 14 }}>
-                    <div style={{ fontWeight: 700, marginBottom: 4, fontSize: "9pt" }}>Exclusions (not included in BOQ):</div>
-                    {printRow.exclusions.map((ex, i) => <div key={i} style={{ fontSize: "8.5pt" }}>• {ex}</div>)}
-                  </div>
-                )}
-
-                {(printRow.terms_conditions || []).length > 0 && (
-                  <div>
-                    <div style={{ fontWeight: 700, marginBottom: 4, fontSize: "9pt" }}>Terms & Conditions:</div>
-                    {printRow.terms_conditions.map((t, i) => <div key={i} style={{ fontSize: "8.5pt" }}>{i + 1}. {t}</div>)}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 
 function DocumentsHub({ clients }) {
   const [sub, setSub] = useState("receipt");
   return (
     <div>
       <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-        {[["receipt", "🧾 Money Receipt"], ["invoice", "📄 Invoice"], ["quotation", "📋 Quotation / Estimate"]].map(([id, label]) => (
+        {[["receipt", "🧾 Money Receipt"], ["invoice", "📄 Invoice"]].map(([id, label]) => (
           <button key={id} onClick={() => setSub(id)} style={{ background: sub === id ? C.primary : C.white, color: sub === id ? C.white : C.gray800, border: "1px solid " + (sub === id ? C.primary : C.gray200), borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
         ))}
       </div>
       {sub === "receipt" && <MoneyReceipts clients={clients} />}
       {sub === "invoice" && <Invoices clients={clients} />}
-      {sub === "quotation" && <Quotations clients={clients} />}
     </div>
   );
 }
@@ -4389,17 +4145,7 @@ function BOQSystem() {
   const updateDelivery = async (val) => { await supabase.from("project_settings").update({ delivery_charge: Number(val) || 0 }).eq("project_id", selProj); await loadSettings(selProj); };
 
   const handlePrint = () => {
-    const content = document.getElementById("boq-print-area");
-    if (!content) return;
-    const win = window.open("", "_blank");
-          const boqStyle = "<html><head><title>BOQ - NIC</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#1A1A1A}.header{text-align:center;border-bottom:3px solid #3F5F45;padding-bottom:12px;margin-bottom:16px}.company-name{font-size:22px;font-weight:800;color:#3F5F45}.doc-title{font-size:15px;font-weight:700;background:#E8F0E9;color:#2A3F2E;padding:4px 16px;border-radius:6px;display:inline-block;margin-top:6px}table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px}th{background:#3F5F45;color:white;padding:8px 10px;text-align:center}td{padding:7px 10px;border:1px solid #ddd;text-align:center}.room-header{background:#3F5F45;color:white;padding:8px 14px;font-weight:bold;margin-top:14px}.subtotal{background:#E8F0E9;font-weight:bold}.total-box{max-width:400px;margin-left:auto;border:2px solid #3F5F45;padding:14px;border-radius:6px}.exclusions{margin-top:16px;background:#fff8e1;border:1px solid #C9A84C;padding:12px;border-radius:6px}.signatures{display:flex;justify-content:space-between;margin-top:40px;padding-top:14px;border-top:1px solid #ddd}.sig-line{border-top:1px solid #333;padding-top:4px;width:150px;text-align:center;font-size:12px}@media print{body{padding:10px}}</style></head><body>";
-      win.document.write(boqStyle);
-          const boqHeader = "<div class=\"header\"><div class=\"company-name\">NOKSHA INTERIOR & CONSTRUCTION</div><div style=\"font-size:12px;color:#6B8F6B\">নীলটুলী, ফরিদপুর | পল্লবী, ঢাকা</div><div class=\"doc-title\">BILL OF QUANTITIES (BOQ)</div><div style=\"font-size:12px;margin-top:6px\">Project: " + (settings?.project_name || "") + " | Client: " + (settings?.client_name || "") + " | Date: " + new Date().toLocaleDateString("en-GB") + "</div></div>";
-      win.document.write(boqHeader);
-    win.document.write(content.innerHTML);
-    win.document.write("</body></html>");
-    win.document.close();
-    setTimeout(() => win.print(), 600);
+    printSection("BILL OF QUANTITIES (BOQ)", "boq-print-area", new Date());
   };
 
   const thS = { padding: "8px 10px", border: "1px solid #ddd", background: "#3F5F45", color: "#fff", fontSize: 12 };
@@ -4409,7 +4155,7 @@ function BOQSystem() {
     <div>
       {/* Header row */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2 style={{ margin: 0, color: C.primaryDark, fontSize: 18, fontWeight: 700 }}>BOQ সিস্টেম</h2>
+        <h2 style={{ margin: 0, color: C.primaryDark, fontSize: 18, fontWeight: 700 }}>📋 Estimate Project</h2>
         <button onClick={() => setShowProjModal(true)} style={{ background: C.primary, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>+ নতুন Project</button>
       </div>
 
@@ -4450,6 +4196,10 @@ function BOQSystem() {
 
               {loading ? <div style={{ textAlign: "center", padding: 40, color: C.gray400 }}>লোড হচ্ছে...</div> : (
                 <div id="boq-print-area">
+                  <div style={{ fontSize: 12, marginBottom: 14 }}>
+                    <strong>Project:</strong> {settings?.project_name || ""} &nbsp;|&nbsp; <strong>Client:</strong> {settings?.client_name || ""}
+                    {settings?.client_address ? <> &nbsp;|&nbsp; <strong>Address:</strong> {settings.client_address}</> : null}
+                  </div>
                   {Object.keys(roomGroups).length === 0 ? (
                     <Card style={{ textAlign: "center", padding: 50 }}><div style={{ fontSize: 36, marginBottom: 10 }}>📋</div><div style={{ color: C.gray400 }}>কোনো item নেই। "+ Item যোগ করুন" ক্লিক করুন।</div></Card>
                   ) : (
@@ -5312,7 +5062,7 @@ const ALL_MENU = [
   { id: "projects", icon: "🏗️", label: "প্রজেক্ট", roles: ["admin"] },
   { id: "construction", icon: "🏚️", label: "Construction Projects", roles: ["admin", "site_engineer"] },
   { id: "interior", icon: "🛋️", label: "Interior Projects", roles: ["admin", "site_engineer"] },
-  { id: "boq", icon: "📋", label: "BOQ সিস্টেম", roles: ["admin"] },
+  { id: "boq", icon: "📋", label: "Estimate Project", roles: ["admin"] },
   { id: "clients", icon: "👥", label: "ক্লায়েন্ট", roles: ["admin"] },
   { id: "documents", icon: "🧾", label: "রশিদ ও চালান", roles: ["admin"] },
   { id: "hr_system", icon: "👥", label: "HR ও পে-রোল সিস্টেম", roles: ["admin"] },
