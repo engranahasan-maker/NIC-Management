@@ -855,13 +855,17 @@ function MoneyReceipts({ clients }) {
   const [receipts, setReceipts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showMultiModal, setShowMultiModal] = useState(false);
   const [printRow, setPrintRow] = useState(null);
   const blankForm = { client_id: "", amount: "", payment_for: "", payment_method: "নগদ", received_date: new Date().toISOString().split("T")[0], received_by: "" };
   const [form, setForm] = useState(blankForm);
+  const blankRow = () => ({ client_id: "", amount: "", payment_for: "", payment_method: "নগদ", received_date: new Date().toISOString().split("T")[0], received_by: "" });
+  const [rows, setRows] = useState([blankRow()]);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("money_receipts").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("money_receipts").select("*").order("created_at", { ascending: false });
+    if (error) { console.error(error); setLoading(false); return; }
     setReceipts(data || []);
     setLoading(false);
   };
@@ -872,8 +876,22 @@ function MoneyReceipts({ clients }) {
   const save = async () => {
     if (!form.client_id || !form.amount) return alert("ক্লায়েন্ট ও পরিমাণ আবশ্যক");
     const receiptNo = "MR-" + String(receipts.length + 1).padStart(4, "0");
-    await supabase.from("money_receipts").insert([{ ...form, amount: +form.amount, receipt_no: receiptNo }]);
+    const { error } = await supabase.from("money_receipts").insert([{ ...form, amount: +form.amount, receipt_no: receiptNo }]);
+    if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
     setShowModal(false); setForm(blankForm); load();
+  };
+
+  const addRow = () => setRows(r => [...r, blankRow()]);
+  const removeRow = (idx) => setRows(r => r.filter((_, i) => i !== idx));
+  const updateRow = (idx, field, val) => setRows(r => r.map((row, i) => i === idx ? { ...row, [field]: val } : row));
+
+  const saveMultiRows = async () => {
+    const valid = rows.filter(r => r.client_id && r.amount);
+    if (valid.length === 0) return alert("কমপক্ষে একটি সারিতে ক্লায়েন্ট ও পরিমাণ দিন!");
+    const payloads = valid.map((r, i) => ({ ...r, amount: +r.amount || 0, receipt_no: "MR-" + String(receipts.length + i + 1).padStart(4, "0") }));
+    const { error } = await supabase.from("money_receipts").insert(payloads);
+    if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
+    setShowMultiModal(false); setRows([blankRow()]); load();
   };
 
   const del = async (id) => { if (!confirm("এই রশিদ মুছবেন?")) return; await supabase.from("money_receipts").delete().eq("id", id); load(); };
@@ -881,7 +899,11 @@ function MoneyReceipts({ clients }) {
 
   return (
     <div>
-      <SectionHeader title="🧾 Money Receipt" action="নতুন রশিদ" onAction={() => setShowModal(true)} />
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button onClick={() => setShowModal(true)} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একটি রশিদ</button>
+        <button onClick={() => setShowMultiModal(true)} style={{ background: "#2A5C8F", color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একসাথে একাধিক রশিদ</button>
+      </div>
+      <SectionHeader title="🧾 Money Receipt" />
       <Card>
         {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : receipts.length === 0 ? (
           <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো রশিদ তৈরি হয়নি</div>
@@ -928,6 +950,48 @@ function MoneyReceipts({ clients }) {
         </Modal>
       )}
 
+      {showMultiModal && (
+        <Modal title="একসাথে একাধিক Money Receipt যোগ করুন" onClose={() => setShowMultiModal(false)} size={950}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: C.primaryBg }}>
+                  {["তারিখ", "ক্লায়েন্ট *", "পরিমাণ *", "বাবদ", "পদ্ধতি", "গ্রহণকারী", ""].map(h => (
+                    <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => (
+                  <tr key={idx} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                    <td style={{ padding: 4 }}><input type="date" style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 120 }} value={row.received_date} onChange={e => updateRow(idx, "received_date", e.target.value)} /></td>
+                    <td style={{ padding: 4 }}>
+                      <select style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 140 }} value={row.client_id} onChange={e => updateRow(idx, "client_id", e.target.value)}>
+                        <option value="">— বাছাই —</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: 4 }}><input type="number" style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, width: 90 }} value={row.amount} onChange={e => updateRow(idx, "amount", e.target.value)} /></td>
+                    <td style={{ padding: 4 }}><input style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 140 }} value={row.payment_for} onChange={e => updateRow(idx, "payment_for", e.target.value)} /></td>
+                    <td style={{ padding: 4 }}>
+                      <select style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 100 }} value={row.payment_method} onChange={e => updateRow(idx, "payment_method", e.target.value)}>
+                        {["নগদ", "ব্যাংক", "বিকাশ", "নগদ (App)", "চেক"].map(m => <option key={m}>{m}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: 4 }}><input style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 100 }} value={row.received_by} onChange={e => updateRow(idx, "received_by", e.target.value)} /></td>
+                    <td style={{ padding: 4 }}>{rows.length > 1 && <button onClick={() => removeRow(idx)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 14 }}>🗑️</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button onClick={addRow} style={{ ...btnEdit, marginTop: 10 }}>➕ সারি যোগ করুন</button>
+          <div style={{ marginTop: 16 }}>
+            <button onClick={saveMultiRows} style={btnPrimary}>✅ সব রশিদ সংরক্ষণ করুন ({rows.filter(r => r.client_id && r.amount).length})</button>
+          </div>
+        </Modal>
+      )}
+
       <div style={{ display: "none" }}>
         <div id="receipt-print">
           {printRow && (
@@ -965,13 +1029,17 @@ function Invoices({ clients }) {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showMultiModal, setShowMultiModal] = useState(false);
   const [printRow, setPrintRow] = useState(null);
   const blankForm = { client_id: "", project_name: "", invoice_date: new Date().toISOString().split("T")[0], due_date: "", items: [{ description: "", quantity: 1, rate: 0 }], discount: 0, notes: "", status: "Unpaid" };
   const [form, setForm] = useState(blankForm);
+  const blankRow = () => ({ client_id: "", project_name: "", description: "", quantity: 1, rate: "", invoice_date: new Date().toISOString().split("T")[0], due_date: "" });
+  const [rows, setRows] = useState([blankRow()]);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("invoices").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("invoices").select("*").order("created_at", { ascending: false });
+    if (error) { console.error(error); setLoading(false); return; }
     setInvoices(data || []);
     setLoading(false);
   };
@@ -989,8 +1057,29 @@ function Invoices({ clients }) {
     if (!form.client_id) return alert("ক্লায়েন্ট আবশ্যক");
     const invoiceNo = "INV-" + String(invoices.length + 1).padStart(4, "0");
     const total = subtotalOf(form.items) - (+form.discount || 0);
-    await supabase.from("invoices").insert([{ ...form, discount: +form.discount || 0, total, invoice_no: invoiceNo }]);
+    const { error } = await supabase.from("invoices").insert([{ ...form, discount: +form.discount || 0, total, invoice_no: invoiceNo }]);
+    if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
     setShowModal(false); setForm(blankForm); load();
+  };
+
+  const addRow = () => setRows(r => [...r, blankRow()]);
+  const removeRow = (idx) => setRows(r => r.filter((_, i) => i !== idx));
+  const updateRow = (idx, field, val) => setRows(r => r.map((row, i) => i === idx ? { ...row, [field]: val } : row));
+
+  const saveMultiRows = async () => {
+    const valid = rows.filter(r => r.client_id && r.description && r.rate);
+    if (valid.length === 0) return alert("কমপক্ষে একটি সারিতে ক্লায়েন্ট, বিবরণ ও দর দিন!");
+    const payloads = valid.map((r, i) => {
+      const items = [{ description: r.description, quantity: +r.quantity || 1, rate: +r.rate || 0 }];
+      return {
+        client_id: r.client_id, project_name: r.project_name, invoice_date: r.invoice_date, due_date: r.due_date || null,
+        items, discount: 0, notes: "", status: "Unpaid", total: subtotalOf(items),
+        invoice_no: "INV-" + String(invoices.length + i + 1).padStart(4, "0"),
+      };
+    });
+    const { error } = await supabase.from("invoices").insert(payloads);
+    if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
+    setShowMultiModal(false); setRows([blankRow()]); load();
   };
 
   const markStatus = async (inv, status) => { await supabase.from("invoices").update({ status }).eq("id", inv.id); load(); };
@@ -999,7 +1088,11 @@ function Invoices({ clients }) {
 
   return (
     <div>
-      <SectionHeader title="📄 Invoice" action="নতুন Invoice" onAction={() => setShowModal(true)} />
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button onClick={() => setShowModal(true)} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একটি Invoice (বিস্তারিত)</button>
+        <button onClick={() => setShowMultiModal(true)} style={{ background: "#2A5C8F", color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একসাথে একাধিক Invoice</button>
+      </div>
+      <SectionHeader title="📄 Invoice" />
       <Card>
         {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : invoices.length === 0 ? (
           <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো Invoice তৈরি হয়নি</div>
@@ -1071,6 +1164,46 @@ function Invoices({ clients }) {
             মোট প্রদেয়: {fmt(subtotalOf(form.items) - (+form.discount || 0))}
           </div>
           <button onClick={save} style={btnPrimary}>✅ Invoice তৈরি করুন</button>
+        </Modal>
+      )}
+
+      {showMultiModal && (
+        <Modal title="একসাথে একাধিক Invoice যোগ করুন (এক-লাইন প্রতিটি)" onClose={() => setShowMultiModal(false)} size={1000}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: C.primaryBg }}>
+                  {["তারিখ", "ক্লায়েন্ট *", "প্রজেক্ট", "বিবরণ *", "পরিমাণ", "দর *", "মোট", "Due তারিখ", ""].map(h => (
+                    <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => (
+                  <tr key={idx} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                    <td style={{ padding: 4 }}><input type="date" style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 120 }} value={row.invoice_date} onChange={e => updateRow(idx, "invoice_date", e.target.value)} /></td>
+                    <td style={{ padding: 4 }}>
+                      <select style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 140 }} value={row.client_id} onChange={e => updateRow(idx, "client_id", e.target.value)}>
+                        <option value="">— বাছাই —</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: 4 }}><input style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 120 }} value={row.project_name} onChange={e => updateRow(idx, "project_name", e.target.value)} /></td>
+                    <td style={{ padding: 4 }}><input style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 160 }} value={row.description} onChange={e => updateRow(idx, "description", e.target.value)} /></td>
+                    <td style={{ padding: 4 }}><input type="number" style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, width: 70 }} value={row.quantity} onChange={e => updateRow(idx, "quantity", e.target.value)} /></td>
+                    <td style={{ padding: 4 }}><input type="number" style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, width: 90 }} value={row.rate} onChange={e => updateRow(idx, "rate", e.target.value)} /></td>
+                    <td style={{ padding: 4, fontSize: 12, fontWeight: 600 }}>{fmt((+row.quantity || 0) * (+row.rate || 0))}</td>
+                    <td style={{ padding: 4 }}><input type="date" style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 120 }} value={row.due_date} onChange={e => updateRow(idx, "due_date", e.target.value)} /></td>
+                    <td style={{ padding: 4 }}>{rows.length > 1 && <button onClick={() => removeRow(idx)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 14 }}>🗑️</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button onClick={addRow} style={{ ...btnEdit, marginTop: 10 }}>➕ সারি যোগ করুন</button>
+          <div style={{ marginTop: 16 }}>
+            <button onClick={saveMultiRows} style={btnPrimary}>✅ সব Invoice সংরক্ষণ করুন ({rows.filter(r => r.client_id && r.description && r.rate).length})</button>
+          </div>
         </Modal>
       )}
 
