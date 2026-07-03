@@ -4181,7 +4181,7 @@ function BOQSystem() {
         <>
           {/* Tabs */}
           <div style={{ display: "flex", borderBottom: "2px solid " + C.primary, marginBottom: 20 }}>
-            {[{ k: "boq", l: "📋 BOQ" }, { k: "expenses", l: "💸 Daily Expenses" }, { k: "compare", l: "📊 Profit Analysis" }].map(t => (
+            {[{ k: "boq", l: "📋 BOQ" }, { k: "expenses", l: "💸 Daily Expenses" }, { k: "compare", l: "📊 Profit Analysis" }, { k: "items", l: "📚 Item Library" }].map(t => (
               <button key={t.k} onClick={() => setTab(t.k)} style={{ padding: "10px 20px", border: "none", borderBottom: tab === t.k ? "3px solid #C9A84C" : "3px solid transparent", background: "none", color: tab === t.k ? C.primaryDark : C.gray600, fontWeight: tab === t.k ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>{t.l}</button>
             ))}
           </div>
@@ -4313,6 +4313,9 @@ function BOQSystem() {
 
           {/* COMPARISON TAB */}
           {tab === "compare" && <BOQComparison grandTotal={grandTotal} deliveryCharge={deliveryCharge} subTotal={subTotal} totalExpenses={totalExpenses} netProfit={netProfit} roomGroups={roomGroups} />}
+
+          {/* ITEM LIBRARY TAB */}
+          {tab === "items" && <BOQItemLibrary stdRates={stdRates} onRefresh={loadStdRates} />}
         </>
       )}
 
@@ -4455,6 +4458,104 @@ function BOQProjectModal({ onSave, onClose }) {
   );
 }
 
+// ============================================================
+// BOQ ITEM LIBRARY (standard items with description, for autocomplete)
+// ============================================================
+function BOQItemLibrary({ stdRates, onRefresh }) {
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const blankForm = { item_name: "", category: "", unit: "sft", rate: "", description: "", specification: "" };
+  const [form, setForm] = useState(blankForm);
+  const uploadRef = useRef();
+
+  const save = async () => {
+    if (!form.item_name) return alert("Item নাম আবশ্যক");
+    const payload = { ...form, rate: +form.rate || 0 };
+    const { error } = editItem ? await supabase.from("standard_rates").update(payload).eq("id", editItem.id) : await supabase.from("standard_rates").insert([payload]);
+    if (error) return alert("❌ ব্যর্থ: " + error.message);
+    setShowModal(false); setForm(blankForm); setEditItem(null); onRefresh();
+  };
+
+  const del = async (id) => { if (!confirm("এই Item মুছবেন?")) return; await supabase.from("standard_rates").delete().eq("id", id); onRefresh(); };
+
+  const handleExport = () => exportToExcel(stdRates.map(sr => ({ "Item Name": sr.item_name, Category: sr.category, Unit: sr.unit, Rate: sr.rate, Description: sr.description || sr.work_description || "", Specification: sr.specification || "" })), "Item Library", "BOQ_Item_Library");
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const rows = await parseExcelFile(file);
+    let count = 0;
+    for (const row of rows) {
+      const item_name = row["Item Name"] || row["item_name"] || row["Item"];
+      if (!item_name) continue;
+      await supabase.from("standard_rates").insert([{
+        item_name, category: row["Category"] || row["category"] || "",
+        unit: row["Unit"] || row["unit"] || "sft", rate: +row["Rate"] || +row["rate"] || 0,
+        description: row["Description"] || row["description"] || "",
+        specification: row["Specification"] || row["specification"] || "",
+      }]);
+      count++;
+    }
+    alert("✅ " + count + "টি Item আপলোড হয়েছে!"); e.target.value = ""; onRefresh();
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 15 }}>📚 Item Library ({fmtNum(stdRates.length)})</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => { setEditItem(null); setForm(blankForm); setShowModal(true); }} style={{ ...btnPrimary, width: "auto", margin: 0 }}>+ নতুন Item</button>
+          <button onClick={handleExport} style={btnEdit}>⬇️ Excel Download</button>
+          <button onClick={() => uploadRef.current?.click()} style={btnEdit}>⬆️ Excel Upload</button>
+          <input type="file" ref={uploadRef} onChange={handleUpload} accept=".xlsx,.xls,.csv" style={{ display: "none" }} />
+        </div>
+      </div>
+      <Card>
+        {stdRates.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো Item নেই। Excel Upload করুন অথবা ম্যানুয়ালি যোগ করুন।</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: C.primaryBg }}>{["Item Name", "Category", "Unit", "Rate", "Description", "Specification", "Action"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {stdRates.map(sr => (
+                  <tr key={sr.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                    <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{sr.item_name}</td>
+                    <td style={{ padding: "8px 10px" }}>{sr.category}</td>
+                    <td style={{ padding: "8px 10px" }}>{sr.unit}</td>
+                    <td style={{ padding: "8px 10px" }}>{fmt(sr.rate)}</td>
+                    <td style={{ padding: "8px 10px", color: C.gray600, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sr.description || sr.work_description || "—"}</td>
+                    <td style={{ padding: "8px 10px", color: C.gray600, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sr.specification || "—"}</td>
+                    <td style={{ padding: "8px 10px" }}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={() => { setEditItem(sr); setForm({ item_name: sr.item_name, category: sr.category || "", unit: sr.unit || "sft", rate: sr.rate || "", description: sr.description || sr.work_description || "", specification: sr.specification || "" }); setShowModal(true); }} style={btnEdit}>✏️</button>
+                        <button onClick={() => del(sr.id)} style={btnDanger}>🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {showModal && (
+        <Modal title={editItem ? "Item সম্পাদনা" : "নতুন Item"} onClose={() => setShowModal(false)}>
+          <FormField label="Item Name *"><input style={inputStyle} value={form.item_name} onChange={e => setForm({ ...form, item_name: e.target.value })} placeholder="False Ceiling (Gypsum)" /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Category"><input style={inputStyle} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} /></FormField>
+            <FormField label="Unit"><select style={inputStyle} value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })}>{BOQ_UNITS.map(u => <option key={u}>{u}</option>)}</select></FormField>
+          </div>
+          <FormField label="Rate (৳)"><input type="number" style={inputStyle} value={form.rate} onChange={e => setForm({ ...form, rate: e.target.value })} /></FormField>
+          <FormField label="Description"><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></FormField>
+          <FormField label="Specification"><input style={inputStyle} value={form.specification} onChange={e => setForm({ ...form, specification: e.target.value })} placeholder="Brand, grade, model" /></FormField>
+          <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 function BOQItemModal({ item, onSave, onClose, stdRates, existingRooms }) {
   const allRooms = [...new Set([...existingRooms, ...BOQ_ROOMS])];
   const [form, setForm] = useState(item || { room_name: allRooms[0] || "Master Bedroom", code_no: "", item_no: 1, item_name: "", work_description: "", specification: "", unit: "sft", qty: "", rate: "", is_rate_fixed: false });
@@ -4466,7 +4567,55 @@ function BOQItemModal({ item, onSave, onClose, stdRates, existingRooms }) {
         <div style={{ gridColumn: "1/-1" }}><FormField label="Room / Area *"><select style={inputStyle} value={form.room_name} onChange={e => setForm({ ...form, room_name: e.target.value })}>{allRooms.map(r => <option key={r}>{r}</option>)}</select></FormField></div>
         <FormField label="Code No"><input style={inputStyle} value={form.code_no} onChange={e => setForm({ ...form, code_no: e.target.value })} placeholder="MB-01" /></FormField>
         <FormField label="Item No"><input style={inputStyle} type="number" value={form.item_no} onChange={e => setForm({ ...form, item_no: e.target.value })} /></FormField>
-        <div style={{ gridColumn: "1/-1" }}><FormField label="Item Name *"><input style={inputStyle} value={form.item_name} onChange={e => setForm({ ...form, item_name: e.target.value })} placeholder="যেমন: False Ceiling" /></FormField></div>
+        {stdRates.length > 0 && (
+          <div style={{ gridColumn: "1/-1" }}>
+            <FormField label="📚 Item Library থেকে বাছুন (auto-fill হবে)">
+              <select
+                style={{ ...inputStyle, fontWeight: 600, color: C.primaryDark }}
+                value=""
+                onChange={e => {
+                  const sr = stdRates.find(s => String(s.id) === e.target.value);
+                  if (!sr) return;
+                  setForm(f => ({
+                    ...f,
+                    item_name: sr.item_name,
+                    unit: sr.unit || f.unit,
+                    rate: sr.rate,
+                    work_description: sr.description || sr.work_description || "",
+                    specification: sr.specification || "",
+                    is_rate_fixed: true,
+                  }));
+                }}
+              >
+                <option value="">— একটা Item বাছুন —</option>
+                {stdRates.map(sr => <option key={sr.id} value={sr.id}>{sr.item_name} ({fmt(sr.rate)}/{sr.unit})</option>)}
+              </select>
+            </FormField>
+          </div>
+        )}
+
+        <div style={{ gridColumn: "1/-1" }}>
+          <FormField label="Item Name * (উপর থেকে বাছার পর এখানে edit-ও করা যাবে)">
+            <input
+              style={inputStyle}
+              list="std-item-names"
+              value={form.item_name}
+              onChange={e => {
+                const val = e.target.value;
+                const match = stdRates.find(sr => sr.item_name === val);
+                if (match) {
+                  setForm(f => ({ ...f, item_name: match.item_name, unit: match.unit, rate: match.rate, work_description: match.description || match.work_description || f.work_description, specification: match.specification || f.specification, is_rate_fixed: true }));
+                } else {
+                  setForm(f => ({ ...f, item_name: val }));
+                }
+              }}
+              placeholder="যেমন: False Ceiling"
+            />
+            <datalist id="std-item-names">
+              {stdRates.map(sr => <option key={sr.id} value={sr.item_name} />)}
+            </datalist>
+          </FormField>
+        </div>
         <div style={{ gridColumn: "1/-1" }}><FormField label="Work Description"><input style={inputStyle} value={form.work_description} onChange={e => setForm({ ...form, work_description: e.target.value })} /></FormField></div>
         <div style={{ gridColumn: "1/-1" }}><FormField label="Specification"><input style={inputStyle} value={form.specification} onChange={e => setForm({ ...form, specification: e.target.value })} placeholder="Brand, grade, model" /></FormField></div>
         <FormField label="Unit"><select style={inputStyle} value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })}>{BOQ_UNITS.map(u => <option key={u}>{u}</option>)}</select></FormField>
@@ -4474,14 +4623,6 @@ function BOQItemModal({ item, onSave, onClose, stdRates, existingRooms }) {
         <FormField label="Rate (৳) *"><input style={inputStyle} type="number" value={form.rate} onChange={e => setForm({ ...form, rate: e.target.value })} /></FormField>
         <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 18 }}><input type="checkbox" id="fixed" checked={form.is_rate_fixed} onChange={e => setForm({ ...form, is_rate_fixed: e.target.checked })} /><label htmlFor="fixed" style={{ cursor: "pointer", fontSize: 13 }}>🔒 Rate Fixed রাখুন</label></div>
         <div style={{ gridColumn: "1/-1", background: C.primaryBg, padding: "10px 14px", borderRadius: 8, textAlign: "center", fontWeight: 700, color: C.primaryDark }}>Amount: ৳ {amt}</div>
-        {stdRates.length > 0 && (
-          <div style={{ gridColumn: "1/-1" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.gray600, marginBottom: 6 }}>Standard Rate থেকে নিন:</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {stdRates.map(sr => <button key={sr.id} onClick={() => setForm(f => ({ ...f, item_name: sr.item_name, unit: sr.unit, rate: sr.rate, is_rate_fixed: true }))} style={{ background: C.primaryBg, border: "1px solid " + C.primaryLight, borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 11, color: C.primaryDark }}>{sr.item_name} ({sr.rate}/{sr.unit})</button>)}
-            </div>
-          </div>
-        )}
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
         <button onClick={onClose} style={{ ...btnPrimary, width: "auto", background: C.gray400, padding: "9px 16px" }}>বাতিল</button>
