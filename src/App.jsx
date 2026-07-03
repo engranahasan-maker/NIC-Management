@@ -4124,6 +4124,7 @@ function BOQSystem() {
   const [stdRates, setStdRates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showProjModal, setShowProjModal] = useState(false);
+  const [showEditProjModal, setShowEditProjModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
   const [showMultiItemModal, setShowMultiItemModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -4155,6 +4156,20 @@ function BOQSystem() {
       payment_terms_policy: form.payment_terms_policy ? form.payment_terms_policy.split("\n").filter(Boolean) : [],
     });
     await loadProjects(); setSelProj(pid); setShowProjModal(false);
+  };
+
+  const updateProjectSettings = async (form) => {
+    const { error } = await supabase.from("project_settings").update({
+      project_name: form.project_name, client_name: form.client_name, client_address: form.client_address, client_phone: form.client_phone, delivery_charge: Number(form.delivery_charge) || 0,
+      exclusions: form.exclusions ? form.exclusions.split("\n").filter(Boolean) : [],
+      clearance: form.clearance ? form.clearance.split("\n").filter(Boolean) : [],
+      terms_conditions: form.terms_conditions ? form.terms_conditions.split("\n").filter(Boolean) : [],
+      payment_methods: form.payment_methods ? form.payment_methods.split("\n").filter(Boolean) : [],
+      payment_terms_policy: form.payment_terms_policy ? form.payment_terms_policy.split("\n").filter(Boolean) : [],
+    }).eq("project_id", selProj);
+    if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
+    await loadSettings(selProj); await loadProjects();
+    setShowEditProjModal(false);
   };
 
   const saveBOQItem = async (form) => {
@@ -4240,6 +4255,7 @@ function BOQSystem() {
             {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_id} — {p.project_name} ({p.client_name})</option>)}
           </select>
           {settings && <span style={{ fontSize: 12, color: C.gray600 }}>📍 {settings.client_address} | 📞 {settings.client_phone}</span>}
+          {selProj && settings && <button onClick={() => setShowEditProjModal(true)} style={{ ...btnEdit, marginLeft: "auto" }}>✏️ Project Settings (নাম/Exclusions/Terms ইত্যাদি)</button>}
         </div>
       </Card>
 
@@ -4276,7 +4292,6 @@ function BOQSystem() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                       <div style={{ fontStyle: "italic", fontWeight: 700, fontSize: 15 }}>PRELIMINARY QUOTATION FOR INTERIOR WORK (Flat)</div>
                       <div style={{ fontSize: 11, textAlign: "right" }}>
-                        <div>Date: {new Date().toLocaleDateString("en-GB")}</div>
                         <div style={{ fontWeight: 700 }}>SL: {settings?.serial_no || genSerialNo()}</div>
                       </div>
                     </div>
@@ -4431,6 +4446,7 @@ function BOQSystem() {
 
       {/* Modals */}
       {showProjModal && <BOQProjectModal onSave={saveProject} onClose={() => setShowProjModal(false)} />}
+      {showEditProjModal && settings && <BOQProjectModal existing={settings} onSave={updateProjectSettings} onClose={() => setShowEditProjModal(false)} />}
       {showItemModal && <BOQItemModal item={editItem} stdRates={stdRates} existingRooms={Object.keys(roomGroups)} onSave={saveBOQItem} onClose={() => { setShowItemModal(false); setEditItem(null); }} />}
       {showMultiItemModal && <BOQMultiItemModal stdRates={stdRates} existingRooms={Object.keys(roomGroups)} onSave={saveBOQItemsBulk} onClose={() => setShowMultiItemModal(false)} />}
     </div>
@@ -4548,8 +4564,16 @@ function BOQComparison({ grandTotal, deliveryCharge, subTotal, totalExpenses, ne
   );
 }
 
-function BOQProjectModal({ onSave, onClose }) {
-  const [form, setForm] = useState({
+function BOQProjectModal({ onSave, onClose, existing }) {
+  const arrToText = (a) => Array.isArray(a) ? a.join("\n") : (a || "");
+  const [form, setForm] = useState(existing ? {
+    project_name: existing.project_name || "", client_name: existing.client_name || "", client_address: existing.client_address || "", client_phone: existing.client_phone || "", delivery_charge: existing.delivery_charge || 0,
+    exclusions: arrToText(existing.exclusions) || BOQ_DEFAULT_EXCLUSIONS,
+    clearance: arrToText(existing.clearance) || BOQ_DEFAULT_CLEARANCE,
+    terms_conditions: arrToText(existing.terms_conditions) || BOQ_DEFAULT_TERMS,
+    payment_methods: arrToText(existing.payment_methods) || BOQ_DEFAULT_PAYMENT_METHODS,
+    payment_terms_policy: arrToText(existing.payment_terms_policy) || BOQ_DEFAULT_PAYMENT_TERMS,
+  } : {
     project_name: "", client_name: "", client_address: "", client_phone: "", delivery_charge: 0,
     exclusions: BOQ_DEFAULT_EXCLUSIONS,
     clearance: BOQ_DEFAULT_CLEARANCE,
@@ -4557,13 +4581,13 @@ function BOQProjectModal({ onSave, onClose }) {
     payment_methods: BOQ_DEFAULT_PAYMENT_METHODS,
     payment_terms_policy: BOQ_DEFAULT_PAYMENT_TERMS,
   });
-  const serialPreview = genSerialNo();
+  const serialPreview = existing?.serial_no || genSerialNo();
   return (
-    <Modal title="নতুন BOQ Project" onClose={onClose} size={650}>
+    <Modal title={existing ? "✏️ Project Settings সম্পাদনা" : "নতুন BOQ Project"} onClose={onClose} size={650}>
       <div style={{ background: C.primaryBg, borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 12, color: C.primaryDark }}>
-        📌 Serial No (auto): <strong>{serialPreview}</strong>
+        📌 Serial No: <strong>{serialPreview}</strong>
       </div>
-      <FormField label="Project Name *"><input style={inputStyle} value={form.project_name} onChange={e => setForm({ ...form, project_name: e.target.value })} placeholder="যেমন: Rahman Villa Interior" /></FormField>
+      <FormField label="Project Name * (rename করতে পারবেন)"><input style={inputStyle} value={form.project_name} onChange={e => setForm({ ...form, project_name: e.target.value })} placeholder="যেমন: Rahman Villa Interior" /></FormField>
       <FormField label="Client Name *"><input style={inputStyle} value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} placeholder="Mr. Opu Sir (Managing Director of ...)" /></FormField>
       <FormField label="Project Location / Address"><input style={inputStyle} value={form.client_address} onChange={e => setForm({ ...form, client_address: e.target.value })} placeholder="Sunrise train school, rathkhola, Faridpur sadar, Faridpur." /></FormField>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -4571,7 +4595,7 @@ function BOQProjectModal({ onSave, onClose }) {
         <FormField label="Delivery Charge (৳)"><input style={inputStyle} type="number" value={form.delivery_charge} onChange={e => setForm({ ...form, delivery_charge: e.target.value })} /></FormField>
       </div>
 
-      <div style={{ fontSize: 12, color: C.gray400, margin: "14px 0 10px", borderTop: "1px solid " + C.gray100, paddingTop: 10 }}>নিচের সব অংশ default হিসেবে ভরা আছে (Noksha-এর standard বিবরণ) — চাইলে edit করুন, প্রতিটা নতুন Project-এ এটাই default থাকবে।</div>
+      <div style={{ fontSize: 12, color: C.gray400, margin: "14px 0 10px", borderTop: "1px solid " + C.gray100, paddingTop: 10 }}>{existing ? "নিচের সব অংশ এই Project-এর জন্য edit করুন — Save করলেই print-এ আপডেট হয়ে যাবে।" : "নিচের সব অংশ default হিসেবে ভরা আছে (Noksha-এর standard বিবরণ) — চাইলে edit করুন, প্রতিটা নতুন Project-এ এটাই default থাকবে।"}</div>
 
       <FormField label="Project Exclusions (প্রতি লাইনে একটি ক্যাটাগরি)"><textarea style={{ ...inputStyle, height: 100, resize: "vertical", fontSize: 11 }} value={form.exclusions} onChange={e => setForm({ ...form, exclusions: e.target.value })} /></FormField>
       <FormField label="Clearance (প্রতি লাইনে একটি)"><textarea style={{ ...inputStyle, height: 80, resize: "vertical", fontSize: 11 }} value={form.clearance} onChange={e => setForm({ ...form, clearance: e.target.value })} /></FormField>
@@ -4581,7 +4605,7 @@ function BOQProjectModal({ onSave, onClose }) {
 
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
         <button onClick={onClose} style={{ ...btnPrimary, width: "auto", background: C.gray400, padding: "9px 16px" }}>বাতিল</button>
-        <button onClick={() => { if (!form.project_name || !form.client_name) return alert("Project ও Client name দিন"); onSave(form); }} style={{ ...btnPrimary, width: "auto", padding: "9px 20px" }}>✅ তৈরি করুন</button>
+        <button onClick={() => { if (!form.project_name || !form.client_name) return alert("Project ও Client name দিন"); onSave(form); }} style={{ ...btnPrimary, width: "auto", padding: "9px 20px" }}>{existing ? "✅ সংরক্ষণ করুন" : "✅ তৈরি করুন"}</button>
       </div>
     </Modal>
   );
