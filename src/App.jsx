@@ -968,6 +968,99 @@ function Employees({ data, onRefresh }) {
   );
 }
 
+// ============================================================
+// WEEKLY TIMELINE (check-in/check-out visual, per employee)
+// ============================================================
+function WeeklyTimeline({ employeeId, lang }) {
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const weekdayNames = ["রবি", "সোম", "মঙ্গল", "বুধ", "বৃহঃ", "শুক্র", "শনি"];
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  const fmtDate = (d) => d.toISOString().split("T")[0];
+  const getWeekStart = () => {
+    const now = new Date();
+    const sunday = new Date(now);
+    sunday.setDate(now.getDate() - now.getDay() + weekOffset * 7);
+    sunday.setHours(0, 0, 0, 0);
+    return sunday;
+  };
+  const weekStart = getWeekStart();
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d; });
+
+  const load = async () => {
+    if (!employeeId) return;
+    setLoading(true);
+    const { data } = await supabase.from("attendance").select("*").eq("employee_id", employeeId).gte("date", fmtDate(days[0])).lte("date", fmtDate(days[6]));
+    setRows(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [weekOffset, employeeId]);
+
+  const rowByDate = {}; rows.forEach(r => { rowByDate[r.date] = r; });
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const fmtHours = (checkIn, checkOut) => {
+    if (!checkIn || !checkOut) return null;
+    const diffMs = new Date(checkOut) - new Date(checkIn);
+    if (diffMs <= 0) return null;
+    const h = Math.floor(diffMs / 3600000), m = Math.round((diffMs % 3600000) / 60000);
+    return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+  };
+  const fmtTime = (t) => t ? new Date(t).toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: "2-digit", minute: "2-digit" }) : "--:--";
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <button onClick={() => setWeekOffset(w => w - 1)} style={btnEdit}>◀</button>
+        <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 13 }}>
+          {days[0].getDate()} {monthNames[days[0].getMonth()]} {days[0].getFullYear()} — {days[6].getDate()} {monthNames[days[6].getMonth()]} {days[6].getFullYear()}
+        </div>
+        <button onClick={() => setWeekOffset(w => w + 1)} disabled={weekOffset >= 0} style={{ ...btnEdit, opacity: weekOffset >= 0 ? 0.4 : 1, cursor: weekOffset >= 0 ? "default" : "pointer" }}>▶</button>
+      </div>
+
+      {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {days.map((d) => {
+            const dateStr = fmtDate(d);
+            const row = rowByDate[dateStr];
+            const isWeekend = d.getDay() === 5; // Friday
+            const isFuture = dateStr > todayStr;
+            let label = null, dotColor = C.gray200, bg = "transparent";
+            if (isWeekend) { label = "সাপ্তাহিক ছুটি"; dotColor = C.gray400; bg = C.gray50; }
+            else if (isFuture) { label = null; dotColor = C.gray200; bg = "transparent"; }
+            else if (!row) { label = "অনুপস্থিত"; dotColor = C.red; bg = "#FFF5F5"; }
+            else if (row.status === "ছুটি") { label = "ছুটিতে"; dotColor = C.blue; bg = "#F0F7FF"; }
+            else if (row.status === "অনুপস্থিত") { label = "অনুপস্থিত"; dotColor = C.red; bg = "#FFF5F5"; }
+            else { label = "উপস্থিত" + (row.source === "manual_employee" || row.source === "manual_admin" ? " (Manual)" : ""); dotColor = C.green; bg = "#F0FFF4"; }
+
+            const hours = row ? fmtHours(row.check_in_time, row.check_out_time) : null;
+            const ongoing = row?.check_in_time && !row?.check_out_time;
+
+            return (
+              <div key={dateStr} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: bg, border: "1px solid " + C.gray100, flexWrap: "wrap" }}>
+                <div style={{ width: 44, textAlign: "center", flexShrink: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.primaryDark }}>{d.getDate()}</div>
+                  <div style={{ fontSize: 10, color: C.gray400 }}>{weekdayNames[d.getDay()]}</div>
+                </div>
+                <div style={{ width: 60, fontSize: 11, color: C.gray600, flexShrink: 0 }}>{row?.check_in_time ? fmtTime(row.check_in_time) : "--:--"}</div>
+                <div style={{ flex: 1, minWidth: 80, position: "relative", height: 2, background: (isFuture || isWeekend) ? C.gray100 : dotColor, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ position: "absolute", left: -3, width: 8, height: 8, borderRadius: "50%", background: dotColor }} />
+                  {label && <span style={{ background: C.white, border: "1px solid " + C.gray200, borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 600, color: dotColor, whiteSpace: "nowrap" }}>{label}</span>}
+                  <span style={{ position: "absolute", right: -3, width: 8, height: 8, borderRadius: "50%", background: dotColor }} />
+                </div>
+                <div style={{ width: 60, fontSize: 11, color: C.gray600, textAlign: "right", flexShrink: 0 }}>{row?.check_out_time ? fmtTime(row.check_out_time) : "--:--"}</div>
+                <div style={{ width: 70, fontSize: 11, fontWeight: 700, color: C.primaryDark, textAlign: "right", flexShrink: 0 }}>{hours ? hours + " Hrs" : ongoing ? "চলছে…" : "—"}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProfileField({ label, value }) {
   return (
     <div style={{ marginBottom: 12 }}>
@@ -994,7 +1087,7 @@ function EmployeeProfileModal({ employee, onClose, onEdit }) {
     })();
   }, [employee.id]);
 
-  const tabs = [["overview", "👤 Overview"], ["employment", "💼 চাকরির তথ্য"], ["bank", "🏦 ব্যাংক ও ডকুমেন্ট"], ["salary", "💰 বেতন ইতিহাস"]];
+  const tabs = [["overview", "👤 Overview"], ["employment", "💼 চাকরির তথ্য"], ["timeline", "📅 সাপ্তাহিক সময়রেখা"], ["bank", "🏦 ব্যাংক ও ডকুমেন্ট"], ["salary", "💰 বেতন ইতিহাস"]];
 
   return (
     <Modal title="কর্মীর প্রোফাইল" onClose={onClose} size={620}>
@@ -1050,6 +1143,8 @@ function EmployeeProfileModal({ employee, onClose, onEdit }) {
           <ProfileField label="NID নম্বর" value={employee.nid} />
         </div>
       )}
+
+      {tab === "timeline" && <WeeklyTimeline employeeId={employee.id} lang="bn" />}
 
       {tab === "bank" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
@@ -1742,6 +1837,13 @@ function MyAttendance({ currentUser, lang }) {
     await load(); setBusy(false);
   };
 
+  const doCheckOut = async () => {
+    if (!todayAtt) return;
+    setBusy(true);
+    await supabase.from("attendance").update({ check_out_time: new Date().toISOString() }).eq("id", todayAtt.id);
+    await load(); setBusy(false);
+  };
+
   const doWorkUpdate = async (photoDataUrl) => {
     setBusy(true); setShowCamera(false);
     const loc = await getLocation();
@@ -1787,8 +1889,14 @@ function MyAttendance({ currentUser, lang }) {
             <div style={{ flex: 1 }}>
               <div style={{ color: C.green, fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{T.already_checked_in}</div>
               <div style={{ fontSize: 12, color: C.gray600 }}>{T.checked_in_at}: {new Date(todayAtt.check_in_time || todayAtt.created_at || Date.now()).toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
+              {todayAtt.check_out_time && <div style={{ fontSize: 12, color: C.gray600 }}>Check-out: {new Date(todayAtt.check_out_time).toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: "2-digit", minute: "2-digit" })}</div>}
               {todayAtt.lat && <a href={`https://www.google.com/maps?q=${todayAtt.lat},${todayAtt.lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.blue }}>{T.view_location}</a>}
             </div>
+            {!todayAtt.check_out_time ? (
+              <button disabled={busy} onClick={doCheckOut} style={{ ...btnEdit, background: C.red, color: C.white, border: "none" }}>🚪 Check Out</button>
+            ) : (
+              <Badge label="✅ কাজ শেষ" color="green" />
+            )}
           </Card>
 
           <Card>
@@ -1829,6 +1937,11 @@ function MyAttendance({ currentUser, lang }) {
       {showCamera && (
         <CameraCapture lang={lang} onCancel={() => setShowCamera(false)} onCapture={(img) => showCamera === "checkin" ? doCheckIn(img) : doWorkUpdate(img)} />
       )}
+
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>📅 সাপ্তাহিক সময়রেখা</div>
+        <WeeklyTimeline employeeId={currentUser.employee_id} lang={lang} />
+      </Card>
 
       <Card style={{ marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
