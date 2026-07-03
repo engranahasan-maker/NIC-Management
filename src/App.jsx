@@ -4171,7 +4171,17 @@ function BOQSystem() {
         </div>
       </Card>
 
-      {!selProj ? (
+      {/* Tabs - always visible, Item Library doesn't need a project */}
+      <div style={{ display: "flex", borderBottom: "2px solid " + C.primary, marginBottom: 20 }}>
+        {[{ k: "boq", l: "📋 BOQ" }, { k: "expenses", l: "💸 Daily Expenses" }, { k: "compare", l: "📊 Profit Analysis" }, { k: "items", l: "📚 Item Library" }].map(t => (
+          <button key={t.k} onClick={() => setTab(t.k)} style={{ padding: "10px 20px", border: "none", borderBottom: tab === t.k ? "3px solid #C9A84C" : "3px solid transparent", background: "none", color: tab === t.k ? C.primaryDark : C.gray600, fontWeight: tab === t.k ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>{t.l}</button>
+        ))}
+      </div>
+
+      {/* ITEM LIBRARY TAB — works without a project */}
+      {tab === "items" && <BOQItemLibrary stdRates={stdRates} onRefresh={loadStdRates} />}
+
+      {tab !== "items" && (!selProj ? (
         <Card style={{ textAlign: "center", padding: "60px 20px" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
           <div style={{ color: C.primaryDark, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>BOQ Management System</div>
@@ -4179,13 +4189,6 @@ function BOQSystem() {
         </Card>
       ) : (
         <>
-          {/* Tabs */}
-          <div style={{ display: "flex", borderBottom: "2px solid " + C.primary, marginBottom: 20 }}>
-            {[{ k: "boq", l: "📋 BOQ" }, { k: "expenses", l: "💸 Daily Expenses" }, { k: "compare", l: "📊 Profit Analysis" }, { k: "items", l: "📚 Item Library" }].map(t => (
-              <button key={t.k} onClick={() => setTab(t.k)} style={{ padding: "10px 20px", border: "none", borderBottom: tab === t.k ? "3px solid #C9A84C" : "3px solid transparent", background: "none", color: tab === t.k ? C.primaryDark : C.gray600, fontWeight: tab === t.k ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>{t.l}</button>
-            ))}
-          </div>
-
           {/* BOQ TAB */}
           {tab === "boq" && (
             <div>
@@ -4313,11 +4316,8 @@ function BOQSystem() {
 
           {/* COMPARISON TAB */}
           {tab === "compare" && <BOQComparison grandTotal={grandTotal} deliveryCharge={deliveryCharge} subTotal={subTotal} totalExpenses={totalExpenses} netProfit={netProfit} roomGroups={roomGroups} />}
-
-          {/* ITEM LIBRARY TAB */}
-          {tab === "items" && <BOQItemLibrary stdRates={stdRates} onRefresh={loadStdRates} />}
         </>
-      )}
+      ))}
 
       {/* Modals */}
       {showProjModal && <BOQProjectModal onSave={saveProject} onClose={() => setShowProjModal(false)} />}
