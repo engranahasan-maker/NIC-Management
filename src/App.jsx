@@ -37,6 +37,25 @@ const C = {
 const fmt = (n) => "৳" + Number(n || 0).toLocaleString("bn-BD");
 const fmtNum = (n) => Number(n || 0).toLocaleString("bn-BD");
 
+const numToWordsTaka = (num) => {
+  num = Math.round(Number(num) || 0);
+  if (num <= 0) return "Zero Taka Only";
+  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const twoDigits = (n) => n < 20 ? ones[n] : tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
+  const threeDigits = (n) => { const h = Math.floor(n / 100), r = n % 100; return (h ? ones[h] + " Hundred " : "") + (r ? twoDigits(r) : ""); };
+  let n = num, result = "";
+  const crore = Math.floor(n / 10000000); n %= 10000000;
+  const lakh = Math.floor(n / 100000); n %= 100000;
+  const thousand = Math.floor(n / 1000); n %= 1000;
+  const rest = n;
+  if (crore) result += threeDigits(crore) + " Crore ";
+  if (lakh) result += twoDigits(lakh) + " Lakh ";
+  if (thousand) result += twoDigits(thousand) + " Thousand ";
+  if (rest) result += threeDigits(rest);
+  return result.trim() + " Taka Only";
+};
+
 // ============================================================
 // TRANSLATIONS (BN/EN)
 // ============================================================
@@ -64,7 +83,7 @@ const TXT = {
     uploading: "আপলোড হচ্ছে...", link_employee: "কর্মীর সাথে লিংক করুন", select_employee: "কর্মী বাছাই করুন",
     permissions_label: "কোন কোন Menu Access পাবে (টিক দিন)", role_employee: "👤 Employee",
     leave: "ছুটি ব্যবস্থাপনা", payroll: "পে-রোল", recruitment: "নিয়োগ", hr_system: "HR ও পে-রোল সিস্টেম",
-    hr_reports: "HR রিপোর্ট", disbursement: "বিতরণ চ্যানেল", today: "আজ", this_week: "এই সপ্তাহ", this_month: "এই মাস", custom: "কাস্টম",
+    hr_reports: "HR রিপোর্ট", disbursement: "বিতরণ চ্যানেল", today: "আজ", this_week: "এই সপ্তাহ", this_month: "এই মাস", custom: "কাস্টম", documents: "রশিদ ও চালান",
   },
   en: {
     dashboard: "Dashboard", projects: "Projects", construction: "Construction Projects", interior: "Interior Projects",
@@ -89,7 +108,7 @@ const TXT = {
     uploading: "Uploading...", link_employee: "Link to Employee", select_employee: "Select employee",
     permissions_label: "Menu Access (check to allow)", role_employee: "👤 Employee",
     leave: "Leave Management", payroll: "Payroll", recruitment: "Recruitment", hr_system: "HR & Payroll System",
-    hr_reports: "HR Reports", disbursement: "Disbursement Channel", today: "Today", this_week: "This Week", this_month: "This Month", custom: "Custom",
+    hr_reports: "HR Reports", disbursement: "Disbursement Channel", today: "Today", this_week: "This Week", this_month: "This Month", custom: "Custom", documents: "Receipt & Invoice",
   },
 };
 
@@ -167,9 +186,9 @@ const printSection = async (title, contentId) => {
     }
     /* Content */
     .pad-content { }
-    table { width: 100%; border-collapse: collapse; font-size: 8.5pt !important; }
-    th { background: #3F5F45 !important; color: white !important; padding: 4px 6px !important; text-align: left; border: 0.5px solid #2A3F2E; font-size: 8pt !important; font-weight: 600 !important; white-space: nowrap; }
-    td { padding: 4px 6px !important; border-bottom: 0.5px solid #E0E0E0; font-size: 8.5pt !important; }
+    table { width: 100%; border-collapse: collapse; font-size: 10pt !important; }
+    th { background: #3F5F45 !important; color: white !important; padding: 4px 6px !important; text-align: left; border: 0.5px solid #2A3F2E; font-size: 9.5pt !important; font-weight: 600 !important; white-space: nowrap; }
+    td { padding: 4px 6px !important; border-bottom: 0.5px solid #E0E0E0; font-size: 10pt !important; }
     tr:nth-child(even) td { background: #F5F8F5; }
     /* Columns/buttons that should never appear on paper (Action, Edit/Delete, on-screen-only badges) */
     .no-print { display: none !important; }
@@ -825,6 +844,284 @@ function Clients({ data, onRefresh }) {
           <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
         </Modal>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// MONEY RECEIPT
+// ============================================================
+function MoneyReceipts({ clients }) {
+  const [receipts, setReceipts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [printRow, setPrintRow] = useState(null);
+  const blankForm = { client_id: "", amount: "", payment_for: "", payment_method: "নগদ", received_date: new Date().toISOString().split("T")[0], received_by: "" };
+  const [form, setForm] = useState(blankForm);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("money_receipts").select("*").order("created_at", { ascending: false });
+    setReceipts(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const clientById = {}; clients.forEach(c => { clientById[c.id] = c; });
+
+  const save = async () => {
+    if (!form.client_id || !form.amount) return alert("ক্লায়েন্ট ও পরিমাণ আবশ্যক");
+    const receiptNo = "MR-" + String(receipts.length + 1).padStart(4, "0");
+    await supabase.from("money_receipts").insert([{ ...form, amount: +form.amount, receipt_no: receiptNo }]);
+    setShowModal(false); setForm(blankForm); load();
+  };
+
+  const del = async (id) => { if (!confirm("এই রশিদ মুছবেন?")) return; await supabase.from("money_receipts").delete().eq("id", id); load(); };
+  const doPrint = (r) => { setPrintRow(r); setTimeout(() => printSection("Money Receipt — " + r.receipt_no, "receipt-print"), 100); };
+
+  return (
+    <div>
+      <SectionHeader title="🧾 Money Receipt" action="নতুন রশিদ" onAction={() => setShowModal(true)} />
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : receipts.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো রশিদ তৈরি হয়নি</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["রশিদ নং", "ক্লায়েন্ট", "পরিমাণ", "বাবদ", "তারিখ", "পদ্ধতি", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {receipts.map(r => (
+                <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 700, color: C.primaryDark }}>{r.receipt_no}</td>
+                  <td style={{ padding: "10px 14px" }}>{clientById[r.client_id]?.name || "—"}</td>
+                  <td style={{ padding: "10px 14px", fontWeight: 700, color: C.green }}>{fmt(r.amount)}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600 }}>{r.payment_for}</td>
+                  <td style={{ padding: "10px 14px" }}>{r.received_date}</td>
+                  <td style={{ padding: "10px 14px" }}><Badge label={r.payment_method} color="primary" /></td>
+                  <td style={{ padding: "10px 14px" }}><div style={{ display: "flex", gap: 6 }}><button onClick={() => doPrint(r)} style={btnEdit}>🖨️</button><button onClick={() => del(r.id)} style={btnDanger}>🗑️</button></div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {showModal && (
+        <Modal title="নতুন Money Receipt" onClose={() => setShowModal(false)}>
+          <FormField label="ক্লায়েন্ট *">
+            <select style={inputStyle} value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })}>
+              <option value="">— বাছাই করুন —</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </FormField>
+          <FormField label="পরিমাণ (৳) *"><input type="number" style={inputStyle} value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} /></FormField>
+          <FormField label="কী বাবদ (Payment For)"><input style={inputStyle} value={form.payment_for} onChange={e => setForm({ ...form, payment_for: e.target.value })} placeholder="যেমন: এডভান্স পেমেন্ট - ইন্টেরিয়র ডিজাইন" /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="পেমেন্ট পদ্ধতি">
+              <select style={inputStyle} value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })}>
+                {["নগদ", "ব্যাংক", "বিকাশ", "নগদ (App)", "চেক"].map(m => <option key={m}>{m}</option>)}
+              </select>
+            </FormField>
+            <FormField label="তারিখ"><input type="date" style={inputStyle} value={form.received_date} onChange={e => setForm({ ...form, received_date: e.target.value })} /></FormField>
+          </div>
+          <FormField label="গ্রহণকারী (Received By)"><input style={inputStyle} value={form.received_by} onChange={e => setForm({ ...form, received_by: e.target.value })} /></FormField>
+          <button onClick={save} style={btnPrimary}>✅ তৈরি করুন</button>
+        </Modal>
+      )}
+
+      <div style={{ display: "none" }}>
+        <div id="receipt-print">
+          {printRow && (
+            <div>
+              <table style={{ marginBottom: 16 }}>
+                <tbody>
+                  <tr><td style={{ fontWeight: 700, width: "25%" }}>Receipt No:</td><td>{printRow.receipt_no}</td><td style={{ fontWeight: 700 }}>Date:</td><td>{printRow.received_date}</td></tr>
+                </tbody>
+              </table>
+              <div style={{ fontSize: "11pt", lineHeight: 2, marginBottom: 20 }}>
+                <div>Received with thanks from <strong>{clientById[printRow.client_id]?.name}</strong>{clientById[printRow.client_id]?.address ? (", " + clientById[printRow.client_id].address) : ""}</div>
+                <div>the sum of Taka <strong>{fmt(printRow.amount)}</strong> ({numToWordsTaka(printRow.amount)})</div>
+                <div>being payment for <strong>{printRow.payment_for || "—"}</strong>.</div>
+                <div>Payment Method: <strong>{printRow.payment_method}</strong></div>
+              </div>
+              <table>
+                <tbody><tr><td style={{ fontWeight: 700 }}>মোট (Total)</td><td style={{ fontWeight: 700, color: "#2e7d32" }}>৳ {fmt(printRow.amount)}</td></tr></tbody>
+              </table>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 60 }}>
+                <div style={{ textAlign: "center" }}><div style={{ borderTop: "1px solid #333", width: 150, paddingTop: 4, fontSize: "9pt" }}>Client Signature</div></div>
+                <div style={{ textAlign: "center" }}><div style={{ borderTop: "1px solid #333", width: 150, paddingTop: 4, fontSize: "9pt" }}>{printRow.received_by || "Authorized Signature"}</div></div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// INVOICE
+// ============================================================
+function Invoices({ clients }) {
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [printRow, setPrintRow] = useState(null);
+  const blankForm = { client_id: "", project_name: "", invoice_date: new Date().toISOString().split("T")[0], due_date: "", items: [{ description: "", quantity: 1, rate: 0 }], discount: 0, notes: "", status: "Unpaid" };
+  const [form, setForm] = useState(blankForm);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("invoices").select("*").order("created_at", { ascending: false });
+    setInvoices(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const clientById = {}; clients.forEach(c => { clientById[c.id] = c; });
+  const subtotalOf = (items) => (items || []).reduce((s, it) => s + ((+it.quantity || 0) * (+it.rate || 0)), 0);
+  const totalOf = (inv) => subtotalOf(inv.items) - (+inv.discount || 0);
+
+  const updateItem = (i, field, val) => { const next = form.items.slice(); next[i] = { ...next[i], [field]: val }; setForm({ ...form, items: next }); };
+  const addItem = () => setForm({ ...form, items: [...form.items, { description: "", quantity: 1, rate: 0 }] });
+  const removeItem = (i) => setForm({ ...form, items: form.items.filter((_, idx) => idx !== i) });
+
+  const save = async () => {
+    if (!form.client_id) return alert("ক্লায়েন্ট আবশ্যক");
+    const invoiceNo = "INV-" + String(invoices.length + 1).padStart(4, "0");
+    const total = subtotalOf(form.items) - (+form.discount || 0);
+    await supabase.from("invoices").insert([{ ...form, discount: +form.discount || 0, total, invoice_no: invoiceNo }]);
+    setShowModal(false); setForm(blankForm); load();
+  };
+
+  const markStatus = async (inv, status) => { await supabase.from("invoices").update({ status }).eq("id", inv.id); load(); };
+  const del = async (id) => { if (!confirm("এই ইনভয়েস মুছবেন?")) return; await supabase.from("invoices").delete().eq("id", id); load(); };
+  const doPrint = (inv) => { setPrintRow(inv); setTimeout(() => printSection("Invoice — " + inv.invoice_no, "invoice-print"), 100); };
+
+  return (
+    <div>
+      <SectionHeader title="📄 Invoice" action="নতুন Invoice" onAction={() => setShowModal(true)} />
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : invoices.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো Invoice তৈরি হয়নি</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["Invoice নং", "ক্লায়েন্ট", "প্রজেক্ট", "মোট", "তারিখ", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {invoices.map(inv => (
+                <tr key={inv.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 700, color: C.primaryDark }}>{inv.invoice_no}</td>
+                  <td style={{ padding: "10px 14px" }}>{clientById[inv.client_id]?.name || "—"}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600 }}>{inv.project_name || "—"}</td>
+                  <td style={{ padding: "10px 14px", fontWeight: 700, color: C.green }}>{fmt(totalOf(inv))}</td>
+                  <td style={{ padding: "10px 14px" }}>{inv.invoice_date}</td>
+                  <td style={{ padding: "10px 14px" }}><Badge label={inv.status === "Paid" ? "✅ Paid" : "⏳ Unpaid"} color={inv.status === "Paid" ? "green" : "yellow"} /></td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => doPrint(inv)} style={btnEdit}>🖨️</button>
+                      {inv.status !== "Paid" && <button onClick={() => markStatus(inv, "Paid")} style={{ ...btnEdit, background: C.greenLight, color: C.green }}>✓ Paid</button>}
+                      <button onClick={() => del(inv.id)} style={btnDanger}>🗑️</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {showModal && (
+        <Modal title="নতুন Invoice তৈরি করুন" onClose={() => setShowModal(false)} size={620}>
+          <FormField label="ক্লায়েন্ট *">
+            <select style={inputStyle} value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })}>
+              <option value="">— বাছাই করুন —</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </FormField>
+          <FormField label="প্রজেক্ট নাম"><input style={inputStyle} value={form.project_name} onChange={e => setForm({ ...form, project_name: e.target.value })} /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Invoice তারিখ"><input type="date" style={inputStyle} value={form.invoice_date} onChange={e => setForm({ ...form, invoice_date: e.target.value })} /></FormField>
+            <FormField label="Due তারিখ"><input type="date" style={inputStyle} value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })} /></FormField>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.primaryDark }}>আইটেম সমূহ</div>
+              <button onClick={addItem} style={{ ...btnEdit, padding: "4px 10px", fontSize: 11 }}>➕ লাইন যোগ করুন</button>
+            </div>
+            <div style={{ border: "1px solid " + C.gray200, borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1.6fr 0.6fr 0.8fr 0.8fr 30px", gap: 0, background: C.primaryBg, padding: "6px 10px", fontSize: 11, fontWeight: 700, color: C.primaryDark }}>
+                <div>বিবরণ</div><div>পরিমাণ</div><div>দর</div><div>মোট</div><div></div>
+              </div>
+              {form.items.map((it, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1.6fr 0.6fr 0.8fr 0.8fr 30px", gap: 6, padding: "6px 10px", borderTop: "1px solid " + C.gray100, alignItems: "center" }}>
+                  <input value={it.description} onChange={e => updateItem(i, "description", e.target.value)} style={{ ...inputStyle, padding: "5px 8px", fontSize: 12 }} />
+                  <input type="number" value={it.quantity} onChange={e => updateItem(i, "quantity", e.target.value)} style={{ ...inputStyle, padding: "5px 8px", fontSize: 12 }} />
+                  <input type="number" value={it.rate} onChange={e => updateItem(i, "rate", e.target.value)} style={{ ...inputStyle, padding: "5px 8px", fontSize: 12 }} />
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{fmt((+it.quantity || 0) * (+it.rate || 0))}</div>
+                  <button onClick={() => removeItem(i)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer" }}>🗑️</button>
+                </div>
+              ))}
+              <div style={{ padding: "8px 10px", background: C.gray50, fontSize: 12, fontWeight: 700, textAlign: "right" }}>সাবটোটাল: {fmt(subtotalOf(form.items))}</div>
+            </div>
+          </div>
+
+          <FormField label="ডিসকাউন্ট (৳)"><input type="number" style={inputStyle} value={form.discount} onChange={e => setForm({ ...form, discount: e.target.value })} /></FormField>
+          <FormField label="নোট"><textarea style={{ ...inputStyle, minHeight: 50 }} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></FormField>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.primaryDark, marginBottom: 14, padding: "10px 14px", background: C.primaryBg, borderRadius: 8 }}>
+            মোট প্রদেয়: {fmt(subtotalOf(form.items) - (+form.discount || 0))}
+          </div>
+          <button onClick={save} style={btnPrimary}>✅ Invoice তৈরি করুন</button>
+        </Modal>
+      )}
+
+      <div style={{ display: "none" }}>
+        <div id="invoice-print">
+          {printRow && (
+            <div>
+              <table style={{ marginBottom: 14 }}>
+                <tbody>
+                  <tr><td style={{ fontWeight: 700, width: "25%" }}>Invoice No:</td><td>{printRow.invoice_no}</td><td style={{ fontWeight: 700 }}>Date:</td><td>{printRow.invoice_date}</td></tr>
+                  <tr><td style={{ fontWeight: 700 }}>Bill To:</td><td>{clientById[printRow.client_id]?.name}</td><td style={{ fontWeight: 700 }}>Due Date:</td><td>{printRow.due_date || "—"}</td></tr>
+                  {printRow.project_name && <tr><td style={{ fontWeight: 700 }}>Project:</td><td colSpan={3}>{printRow.project_name}</td></tr>}
+                </tbody>
+              </table>
+              <table style={{ marginBottom: 12 }}>
+                <thead><tr><th>#</th><th>বিবরণ</th><th>পরিমাণ</th><th>দর (৳)</th><th>মোট (৳)</th></tr></thead>
+                <tbody>
+                  {(printRow.items || []).map((it, i) => (
+                    <tr key={i}><td>{i + 1}</td><td>{it.description}</td><td>{it.quantity}</td><td>{fmt(it.rate)}</td><td>{fmt((+it.quantity || 0) * (+it.rate || 0))}</td></tr>
+                  ))}
+                  <tr><td colSpan={4} style={{ textAlign: "right", fontWeight: 700 }}>সাবটোটাল</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.items))}</td></tr>
+                  {printRow.discount > 0 && <tr><td colSpan={4} style={{ textAlign: "right", fontWeight: 700 }}>ডিসকাউন্ট</td><td style={{ fontWeight: 700, color: "#c0392b" }}>-{fmt(printRow.discount)}</td></tr>}
+                  <tr><td colSpan={4} style={{ textAlign: "right", fontWeight: 700, fontSize: "11pt" }}>মোট প্রদেয়</td><td style={{ fontWeight: 700, fontSize: "11pt", color: "#2e7d32" }}>{fmt(totalOf(printRow))}</td></tr>
+                </tbody>
+              </table>
+              {printRow.notes && <div style={{ fontSize: "9pt", color: "#555", marginBottom: 20 }}><strong>নোট:</strong> {printRow.notes}</div>}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 50 }}>
+                <div style={{ textAlign: "center" }}><div style={{ borderTop: "1px solid #333", width: 160, paddingTop: 4, fontSize: "9pt" }}>Authorized Signature</div></div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// DOCUMENTS HUB (Money Receipt + Invoice)
+// ============================================================
+function DocumentsHub({ clients }) {
+  const [sub, setSub] = useState("receipt");
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+        {[["receipt", "🧾 Money Receipt"], ["invoice", "📄 Invoice"]].map(([id, label]) => (
+          <button key={id} onClick={() => setSub(id)} style={{ background: sub === id ? C.primary : C.white, color: sub === id ? C.white : C.gray800, border: "1px solid " + (sub === id ? C.primary : C.gray200), borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+      {sub === "receipt" && <MoneyReceipts clients={clients} />}
+      {sub === "invoice" && <Invoices clients={clients} />}
     </div>
   );
 }
@@ -4307,7 +4604,7 @@ function CPExpenses({ projectId }) {
       )}
       <Card>
         <div id="expenses-print" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
             <thead><tr style={{ background: C.primaryBg }}>
               {["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}
               <th className="no-print" style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>পেমেন্ট</th>
@@ -4640,6 +4937,7 @@ const ALL_MENU = [
   { id: "interior", icon: "🛋️", label: "Interior Projects", roles: ["admin", "site_engineer"] },
   { id: "boq", icon: "📋", label: "BOQ সিস্টেম", roles: ["admin"] },
   { id: "clients", icon: "👥", label: "ক্লায়েন্ট", roles: ["admin"] },
+  { id: "documents", icon: "🧾", label: "রশিদ ও চালান", roles: ["admin"] },
   { id: "hr_system", icon: "👥", label: "HR ও পে-রোল সিস্টেম", roles: ["admin"] },
   { id: "my_attendance", icon: "🙋", label: "আমার হাজিরা", roles: ["admin", "employee"] },
   { id: "finance", icon: "💰", label: "আর্থিক", roles: ["admin"] },
@@ -4938,7 +5236,7 @@ function IPExpenses({ projectId }) {
       )}
       <Card>
         <div id="ip-expenses-print" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
             <thead><tr style={{ background: C.primaryBg }}>
               {["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}
               <th className="no-print" style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>স্ট্যাটাস</th>
@@ -5599,6 +5897,7 @@ export default function App() {
               {active === "interior" && <InteriorProjects currentUser={currentUser} />}
               {active === "boq" && canAccessMenu(currentUser, isAdmin, "boq") && <BOQSystem />}
               {active === "clients" && canAccessMenu(currentUser, isAdmin, "clients") && <Clients data={data.clients} onRefresh={loadAll} />}
+              {active === "documents" && canAccessMenu(currentUser, isAdmin, "documents") && <DocumentsHub clients={data.clients} />}
               {active === "hr_system" && hasHRAccess(currentUser, isAdmin) && <HRSystemHub data={data} onRefresh={loadAll} lang={lang} currentUser={currentUser} isAdmin={isAdmin} />}
               {active === "my_attendance" && (isAdmin || currentUser?.role === "employee") && <MyAttendance currentUser={currentUser} lang={lang} />}
               {active === "finance" && canAccessMenu(currentUser, isAdmin, "finance") && <Finance data={data.transactions} onRefresh={loadAll} />}
