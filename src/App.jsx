@@ -4523,7 +4523,9 @@ function BOQItemLibrary({ stdRates, onRefresh }) {
                     <td style={{ padding: "8px 10px" }}>{sr.category}</td>
                     <td style={{ padding: "8px 10px" }}>{sr.unit}</td>
                     <td style={{ padding: "8px 10px" }}>{fmt(sr.rate)}</td>
-                    <td style={{ padding: "8px 10px", color: C.gray600, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sr.description || sr.work_description || "—"}</td>
+                    <td style={{ padding: "8px 10px", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {(sr.description || sr.work_description) ? <span style={{ color: C.gray600 }}>{sr.description || sr.work_description}</span> : <span style={{ color: C.red, fontStyle: "italic" }}>⚠️ খালি</span>}
+                    </td>
                     <td style={{ padding: "8px 10px", color: C.gray600, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sr.specification || "—"}</td>
                     <td style={{ padding: "8px 10px" }}>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -4576,7 +4578,6 @@ function BOQItemModal({ item, onSave, onClose, stdRates, existingRooms }) {
                 onChange={e => {
                   const sr = stdRates.find(s => String(s.id) === e.target.value);
                   if (!sr) return;
-                  alert("DEBUG — নির্বাচিত Item-এর raw data:\n\n" + JSON.stringify(sr, null, 2));
                   setForm(f => ({
                     ...f,
                     item_name: sr.item_name,
