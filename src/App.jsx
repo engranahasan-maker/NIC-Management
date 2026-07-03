@@ -876,7 +876,7 @@ function MoneyReceipts({ clients }) {
   const save = async () => {
     if (!form.client_id || !form.amount) return alert("ক্লায়েন্ট ও পরিমাণ আবশ্যক");
     const receiptNo = "MR-" + String(receipts.length + 1).padStart(4, "0");
-    const { error } = await supabase.from("money_receipts").insert([{ ...form, amount: +form.amount, receipt_no: receiptNo }]);
+    const { error } = await supabase.from("money_receipts").insert([{ ...form, amount: +form.amount, received_date: form.received_date || null, receipt_no: receiptNo }]);
     if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
     setShowModal(false); setForm(blankForm); load();
   };
@@ -1057,7 +1057,7 @@ function Invoices({ clients }) {
     if (!form.client_id) return alert("ক্লায়েন্ট আবশ্যক");
     const invoiceNo = "INV-" + String(invoices.length + 1).padStart(4, "0");
     const total = subtotalOf(form.items) - (+form.discount || 0);
-    const { error } = await supabase.from("invoices").insert([{ ...form, discount: +form.discount || 0, total, invoice_no: invoiceNo }]);
+    const { error } = await supabase.from("invoices").insert([{ ...form, due_date: form.due_date || null, invoice_date: form.invoice_date || null, discount: +form.discount || 0, total, invoice_no: invoiceNo }]);
     if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
     setShowModal(false); setForm(blankForm); load();
   };
