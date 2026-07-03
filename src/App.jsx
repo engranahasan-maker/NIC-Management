@@ -4067,6 +4067,52 @@ const BOQ_ROOMS = ["Master Bedroom", "Son's Bedroom", "Daughter's Bedroom", "Kit
 const BOQ_UNITS = ["sft", "rft", "nos", "set", "ls", "kg", "sqm", "rmt"];
 const fmtBOQ = (n) => Number(n || 0).toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const genProjId = () => "NIC-BOQ-" + Date.now().toString(36).toUpperCase();
+const genSerialNo = () => {
+  const d = new Date();
+  const mon = d.toLocaleDateString("en-GB", { month: "short" }).toUpperCase();
+  return "NIC" + String(d.getFullYear()).slice(-2) + mon + String(d.getDate()).padStart(2, "0");
+};
+
+const BOQ_DEFAULT_EXCLUSIONS = [
+  "Loose Furniture & Seating: Living & Dining: Sofa sets, Center tables, Side tables (unless specified in BOQ), Dining table, and Dining chairs. Study & Bedroom: Study chairs, Relaxing chairs, Ottoman/Bench (at the foot of the bed), and any movable seating. Note: Only fixed woodwork (Wardrobes, TV Units, Cabinets) explicitly mentioned in the item list is included.",
+  "Electronics & Appliances: Heavy Appliances: Air Conditioners (AC), Televisions (TV), Refrigerators, Washing Machines, and Ceiling Fans. Kitchen Gadgets: Built-in Microwave Oven, Baking Oven, Dishwasher, Rice Cooker, Coffee Machine, Toaster, etc. Note: We have provided the Kitchen Hood, Hob (Stove), Sink, and RO Filter only. All other electronics shown in the 3D design are for visualization purposes.",
+  "Civil & Sanitary Exclusions (Cost Reduction Items): Bathtub: The bathtub shown in the master bathroom design is excluded (replaced with a standard glass partition/shower area). Imported Tiles: Quoted rates are based on Premium Local Brands (Akij/RAK/DBL). High-end Imported (China/Italian) tiles are excluded. Sanitary Ware: Premium imported sanitary fixtures are excluded. Rates are based on high-quality local brands (Sattar/RFL/Stella) or equivalent standard series.",
+  "Soft Furnishing & Bedding: Bedding: Sleeping Mattresses (Toshok), Pillows, Bed Sheets, Blankets, and Cushions. Curtains & Carpets: We provide the Window Pelmet/Curtain Box only. The Curtain Fabrics, Rails/Rods, Blinds, and Floor Rugs/Carpets are to be purchased by the client.",
+  "Decor & Miscellaneous: Accessories: Wall Paintings, Photo Frames, Table Lamps, Flower Vases, Books, and Decorative Plants. Window Blinds: Venetian or Roller blinds are excluded unless a separate line item is added.",
+  "Paint & Finish Clarification: Paint Specification: All woodwork estimates are based on Premium Enamel / High-Gloss Spray Paint or Hand Polish. Automotive-grade \"Duco Paint\" is excluded to maintain the quoted budget.",
+].join("\n");
+
+const BOQ_DEFAULT_CLEARANCE = [
+  "The quoted amount is only for the above-mentioned work. If any extra work is needed apart from the quoted work above, it will be adjusted/updated on the final bill.",
+  "Civil, plumbing and sanitary, 3 marble/granite, exterior, sound system, LAN/WIFI, AC, any other Labour type work are not included in our inclusion. If required during the service period, changes will be added. We will follow only 3d rendering design.",
+  "We are fully dependent on market suppliers. If the raw materials are not available/supply stockout on the market, complementary materials of similar quality and price shall be used to continue work.",
+].join("\n");
+
+const BOQ_DEFAULT_TERMS = [
+  "Delivery/Handover Delay: Delivery date may change for any unavoidable circumstances.",
+  "Fitting: For Knockdown Furnitures, the fitting team may go the same day or the next day.",
+  "Mode of Payment: Payments are accepted through Bank Transfer/Cash on Delivery/Bkash/Nagad. NOTE: BKASH/NAGAD CHARGES ARE APPLICABLE.",
+  "Labour and Materials Supply: Fully dependent on Project planning, work progress, and other related Normal technical Subjects.",
+  "Return-Refund Policy: No Refund/Return Policy after order confirmation.",
+  "Warranty: 2 years free service Warranty on product frame/loan/manufacturing fault. No warranty/guarantee for Wood, glass, fabric, PU Leather, and damage from rat use. 12 Years Hardware Parts Warranty-Hinge/Kobja, Chain, Channel, SS/MS Item, Handle, Or equivalent.",
+  "Changing: No change is allowed during the installation period without charge.",
+  "Delivery Time: 120 days.",
+  "All taxes and Govt. duties are not applicable to this bill.",
+].join("\n");
+
+const BOQ_DEFAULT_PAYMENT_METHODS = [
+  "You can pay by Cash/Cheque/Bank Transfer/BKash/Nagad.",
+  "Bank Account Name: Noksha Interior & Construction",
+  "Bank Account Number: 7862141003970224",
+  "Bank Name: United Commercial Bank (UCB Bank)",
+  "Branch Name: Faridpur.",
+].join("\n");
+
+const BOQ_DEFAULT_PAYMENT_TERMS = [
+  "1st Payment = 50% advance payment is required before starting the project.",
+  "2nd Payment = 40% payment before paint work.",
+  "3rd Payment = Remaining 10% payment at handover day.",
+].join("\n");
 
 function BOQSystem() {
   const [tab, setTab] = useState("boq");
@@ -4079,6 +4125,7 @@ function BOQSystem() {
   const [loading, setLoading] = useState(false);
   const [showProjModal, setShowProjModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
+  const [showMultiItemModal, setShowMultiItemModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
 
   useEffect(() => { loadProjects(); loadStdRates(); }, []);
@@ -4086,7 +4133,7 @@ function BOQSystem() {
 
   const loadProjects = async () => { const { data } = await supabase.from("project_settings").select("*").order("created_at", { ascending: false }); setProjects(data || []); };
   const loadSettings = async (pid) => { const { data } = await supabase.from("project_settings").select("*").eq("project_id", pid).single(); setSettings(data); };
-  const loadBOQ = async (pid) => { setLoading(true); const { data } = await supabase.from("project_boq").select("*").eq("project_id", pid).order("room_name").order("item_no"); setBoqItems(data || []); setLoading(false); };
+  const loadBOQ = async (pid) => { setLoading(true); const { data } = await supabase.from("project_boq").select("*").eq("project_id", pid).order("room_name").order("item_no").order("id"); setBoqItems(data || []); setLoading(false); };
   const loadExpenses = async (pid) => { const { data } = await supabase.from("project_expenses").select("*").eq("project_id", pid).order("expense_date"); setExpenses(data || []); };
   const loadStdRates = async () => { const { data } = await supabase.from("standard_rates").select("*").order("category"); setStdRates(data || []); };
 
@@ -4099,7 +4146,14 @@ function BOQSystem() {
 
   const saveProject = async (form) => {
     const pid = genProjId();
-    await supabase.from("project_settings").insert({ project_id: pid, project_name: form.project_name, client_name: form.client_name, client_address: form.client_address, client_phone: form.client_phone, delivery_charge: Number(form.delivery_charge) || 0, exclusions: form.exclusions ? form.exclusions.split("\n").filter(Boolean) : [], terms_conditions: form.terms_conditions ? form.terms_conditions.split("\n").filter(Boolean) : [] });
+    await supabase.from("project_settings").insert({
+      project_id: pid, serial_no: genSerialNo(), project_name: form.project_name, client_name: form.client_name, client_address: form.client_address, client_phone: form.client_phone, delivery_charge: Number(form.delivery_charge) || 0,
+      exclusions: form.exclusions ? form.exclusions.split("\n").filter(Boolean) : [],
+      clearance: form.clearance ? form.clearance.split("\n").filter(Boolean) : [],
+      terms_conditions: form.terms_conditions ? form.terms_conditions.split("\n").filter(Boolean) : [],
+      payment_methods: form.payment_methods ? form.payment_methods.split("\n").filter(Boolean) : [],
+      payment_terms_policy: form.payment_terms_policy ? form.payment_terms_policy.split("\n").filter(Boolean) : [],
+    });
     await loadProjects(); setSelProj(pid); setShowProjModal(false);
   };
 
@@ -4138,6 +4192,24 @@ function BOQSystem() {
   };
 
   const deleteBOQItem = async (id) => { if (!confirm("Item মুছবেন?")) return; await supabase.from("project_boq").delete().eq("id", id); await loadBOQ(selProj); };
+
+  const saveBOQItemsBulk = async (rows) => {
+    if (!selProj) return alert("আগে একটি Project select করুন!");
+    const valid = rows.filter(r => r.item_name && r.rate);
+    if (valid.length === 0) return alert("কমপক্ষে একটি সারিতে Item Name ও Rate দিন!");
+    const payloads = valid.map(r => {
+      const qty = Number(r.qty) || 0, rate = Number(r.rate) || 0;
+      return {
+        project_id: selProj, room_name: r.room_name || "Master Bedroom", code_no: r.code_no || "", item_no: Number(r.item_no) || 1,
+        item_name: r.item_name || "", work_description: r.work_description || "", specification: r.specification || "",
+        unit: r.unit || "sft", qty, rate, amount: qty * rate, is_rate_fixed: false,
+      };
+    });
+    const { error } = await supabase.from("project_boq").insert(payloads);
+    if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
+    await loadBOQ(selProj);
+    setShowMultiItemModal(false);
+  };
 
   const saveExpense = async (form) => { if (!selProj) return alert("আগে Project select করুন!"); const qty2 = Number(form.qty) || 1; const rate2 = Number(form.rate) || 0; const r = await supabase.from("project_expenses").insert([{ project_id: selProj, expense_date: form.expense_date || new Date().toISOString().split("T")[0], item_name: form.item_name || "", description: form.description || "", qty: qty2, rate: rate2, amount: qty2 * rate2, category: form.category || "material" }]); if (r.error) { alert("Error: " + r.error.message); return; } await loadExpenses(selProj); };
   const deleteExpense = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("project_expenses").delete().eq("id", id); await loadExpenses(selProj); };
@@ -4194,14 +4266,27 @@ function BOQSystem() {
             <div>
               <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                 <button onClick={() => { setEditItem(null); setShowItemModal(true); }} style={{ background: C.primary, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>+ Item যোগ করুন</button>
+                <button onClick={() => setShowMultiItemModal(true)} style={{ background: "#2A5C8F", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>+ একসাথে একাধিক Item</button>
                 <button onClick={handlePrint} style={{ background: C.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>🖨️ Print / PDF</button>
               </div>
 
               {loading ? <div style={{ textAlign: "center", padding: 40, color: C.gray400 }}>লোড হচ্ছে...</div> : (
                 <div id="boq-print-area">
-                  <div style={{ fontSize: 12, marginBottom: 14 }}>
-                    <strong>Project:</strong> {settings?.project_name || ""} &nbsp;|&nbsp; <strong>Client:</strong> {settings?.client_name || ""}
-                    {settings?.client_address ? <> &nbsp;|&nbsp; <strong>Address:</strong> {settings.client_address}</> : null}
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                      <div style={{ fontStyle: "italic", fontWeight: 700, fontSize: 15 }}>PRELIMINARY QUOTATION FOR INTERIOR WORK (Flat)</div>
+                      <div style={{ fontSize: 11, textAlign: "right" }}>
+                        <div>Date: {new Date().toLocaleDateString("en-GB")}</div>
+                        <div style={{ fontWeight: 700 }}>SL: {settings?.serial_no || genSerialNo()}</div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+                      <div>To,</div>
+                      <div>Client Name: {settings?.client_name || ""}</div>
+                      <div>Project Location: {settings?.client_address || ""}</div>
+                      <div style={{ marginTop: 8 }}>Dear Sir,</div>
+                      <div>We are looking forward to receiving your response to discuss the design and specification.</div>
+                    </div>
                   </div>
                   {Object.keys(roomGroups).length === 0 ? (
                     <Card style={{ textAlign: "center", padding: 50 }}><div style={{ fontSize: 36, marginBottom: 10 }}>📋</div><div style={{ color: C.gray400 }}>কোনো item নেই। "+ Item যোগ করুন" ক্লিক করুন।</div></Card>
@@ -4272,6 +4357,7 @@ function BOQSystem() {
                               <td style={{ padding: "10px 0", fontWeight: 700, color: C.primaryDark, fontSize: 16 }}>Sub Total:</td>
                               <td style={{ textAlign: "right", fontWeight: 700, color: C.primaryDark, fontSize: 16 }}>৳ {fmtBOQ(subTotal)}</td>
                             </tr>
+                            <tr><td colSpan={2} style={{ padding: "6px 0 0", fontSize: 11, fontStyle: "italic", color: C.gray600 }}>In Word: {numToWordsTaka(subTotal)}</td></tr>
                           </tbody>
                         </table>
                         {/* Payment Terms */}
@@ -4299,6 +4385,30 @@ function BOQSystem() {
                         </Card>
                       )}
 
+                      {/* Clearance */}
+                      {settings?.clearance?.length > 0 && (
+                        <Card style={{ marginTop: 12 }}>
+                          <div style={{ fontWeight: 700, marginBottom: 8, color: C.primaryDark }}>CLEARANCE:</div>
+                          {settings.clearance.map((c, i) => <div key={i} style={{ fontSize: 12, marginBottom: 3 }}>• {c}</div>)}
+                        </Card>
+                      )}
+
+                      {/* Payment Methods */}
+                      {settings?.payment_methods?.length > 0 && (
+                        <Card style={{ marginTop: 12 }}>
+                          <div style={{ fontWeight: 700, marginBottom: 8, color: C.primaryDark }}>PAYMENT METHODS:</div>
+                          {settings.payment_methods.map((p, i) => <div key={i} style={{ fontSize: 12, marginBottom: 3 }}>{i === 0 ? p : "• " + p}</div>)}
+                        </Card>
+                      )}
+
+                      {/* Payment Terms & Policy */}
+                      {settings?.payment_terms_policy?.length > 0 && (
+                        <Card style={{ marginTop: 12 }}>
+                          <div style={{ fontWeight: 700, marginBottom: 8, color: C.primaryDark }}>Payment Terms & Policy:</div>
+                          {settings.payment_terms_policy.map((p, i) => <div key={i} style={{ fontSize: 12, marginBottom: 3 }}>• {p}</div>)}
+                        </Card>
+                      )}
+
                       {/* Signatures */}
                       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 40, paddingTop: 14, borderTop: "1px solid " + C.gray200 }}>
                         <div style={{ textAlign: "center" }}><div style={{ borderTop: "1px solid " + C.gray800, paddingTop: 4, width: 150, fontSize: 12 }}>Client Signature</div></div>
@@ -4322,6 +4432,7 @@ function BOQSystem() {
       {/* Modals */}
       {showProjModal && <BOQProjectModal onSave={saveProject} onClose={() => setShowProjModal(false)} />}
       {showItemModal && <BOQItemModal item={editItem} stdRates={stdRates} existingRooms={Object.keys(roomGroups)} onSave={saveBOQItem} onClose={() => { setShowItemModal(false); setEditItem(null); }} />}
+      {showMultiItemModal && <BOQMultiItemModal stdRates={stdRates} existingRooms={Object.keys(roomGroups)} onSave={saveBOQItemsBulk} onClose={() => setShowMultiItemModal(false)} />}
     </div>
   );
 }
@@ -4438,18 +4549,36 @@ function BOQComparison({ grandTotal, deliveryCharge, subTotal, totalExpenses, ne
 }
 
 function BOQProjectModal({ onSave, onClose }) {
-  const [form, setForm] = useState({ project_name: "", client_name: "", client_address: "", client_phone: "", delivery_charge: 0, exclusions: "Civil works\nElectrical main wiring\nPlumbing main line\nFurniture (existing)\nAC & installation", terms_conditions: "Payment as per schedule\nWork starts after 1st installment\nExtra work charged separately\nMaterials as per specification" });
+  const [form, setForm] = useState({
+    project_name: "", client_name: "", client_address: "", client_phone: "", delivery_charge: 0,
+    exclusions: BOQ_DEFAULT_EXCLUSIONS,
+    clearance: BOQ_DEFAULT_CLEARANCE,
+    terms_conditions: BOQ_DEFAULT_TERMS,
+    payment_methods: BOQ_DEFAULT_PAYMENT_METHODS,
+    payment_terms_policy: BOQ_DEFAULT_PAYMENT_TERMS,
+  });
+  const serialPreview = genSerialNo();
   return (
-    <Modal title="নতুন BOQ Project" onClose={onClose} size={600}>
+    <Modal title="নতুন BOQ Project" onClose={onClose} size={650}>
+      <div style={{ background: C.primaryBg, borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 12, color: C.primaryDark }}>
+        📌 Serial No (auto): <strong>{serialPreview}</strong>
+      </div>
       <FormField label="Project Name *"><input style={inputStyle} value={form.project_name} onChange={e => setForm({ ...form, project_name: e.target.value })} placeholder="যেমন: Rahman Villa Interior" /></FormField>
-      <FormField label="Client Name *"><input style={inputStyle} value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} /></FormField>
-      <FormField label="Project Address"><input style={inputStyle} value={form.client_address} onChange={e => setForm({ ...form, client_address: e.target.value })} /></FormField>
+      <FormField label="Client Name *"><input style={inputStyle} value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} placeholder="Mr. Opu Sir (Managing Director of ...)" /></FormField>
+      <FormField label="Project Location / Address"><input style={inputStyle} value={form.client_address} onChange={e => setForm({ ...form, client_address: e.target.value })} placeholder="Sunrise train school, rathkhola, Faridpur sadar, Faridpur." /></FormField>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <FormField label="Client Phone"><input style={inputStyle} value={form.client_phone} onChange={e => setForm({ ...form, client_phone: e.target.value })} /></FormField>
         <FormField label="Delivery Charge (৳)"><input style={inputStyle} type="number" value={form.delivery_charge} onChange={e => setForm({ ...form, delivery_charge: e.target.value })} /></FormField>
       </div>
-      <FormField label="Exclusions (প্রতি লাইনে একটি)"><textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} value={form.exclusions} onChange={e => setForm({ ...form, exclusions: e.target.value })} /></FormField>
-      <FormField label="Terms & Conditions (প্রতি লাইনে একটি)"><textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} value={form.terms_conditions} onChange={e => setForm({ ...form, terms_conditions: e.target.value })} /></FormField>
+
+      <div style={{ fontSize: 12, color: C.gray400, margin: "14px 0 10px", borderTop: "1px solid " + C.gray100, paddingTop: 10 }}>নিচের সব অংশ default হিসেবে ভরা আছে (Noksha-এর standard বিবরণ) — চাইলে edit করুন, প্রতিটা নতুন Project-এ এটাই default থাকবে।</div>
+
+      <FormField label="Project Exclusions (প্রতি লাইনে একটি ক্যাটাগরি)"><textarea style={{ ...inputStyle, height: 100, resize: "vertical", fontSize: 11 }} value={form.exclusions} onChange={e => setForm({ ...form, exclusions: e.target.value })} /></FormField>
+      <FormField label="Clearance (প্রতি লাইনে একটি)"><textarea style={{ ...inputStyle, height: 80, resize: "vertical", fontSize: 11 }} value={form.clearance} onChange={e => setForm({ ...form, clearance: e.target.value })} /></FormField>
+      <FormField label="Terms & Conditions (প্রতি লাইনে একটি)"><textarea style={{ ...inputStyle, height: 100, resize: "vertical", fontSize: 11 }} value={form.terms_conditions} onChange={e => setForm({ ...form, terms_conditions: e.target.value })} /></FormField>
+      <FormField label="Payment Methods (প্রতি লাইনে একটি)"><textarea style={{ ...inputStyle, height: 80, resize: "vertical", fontSize: 11 }} value={form.payment_methods} onChange={e => setForm({ ...form, payment_methods: e.target.value })} /></FormField>
+      <FormField label="Payment Terms & Policy (প্রতি লাইনে একটি)"><textarea style={{ ...inputStyle, height: 60, resize: "vertical", fontSize: 11 }} value={form.payment_terms_policy} onChange={e => setForm({ ...form, payment_terms_policy: e.target.value })} /></FormField>
+
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
         <button onClick={onClose} style={{ ...btnPrimary, width: "auto", background: C.gray400, padding: "9px 16px" }}>বাতিল</button>
         <button onClick={() => { if (!form.project_name || !form.client_name) return alert("Project ও Client name দিন"); onSave(form); }} style={{ ...btnPrimary, width: "auto", padding: "9px 20px" }}>✅ তৈরি করুন</button>
@@ -4629,6 +4758,74 @@ function BOQItemModal({ item, onSave, onClose, stdRates, existingRooms }) {
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
         <button onClick={onClose} style={{ ...btnPrimary, width: "auto", background: C.gray400, padding: "9px 16px" }}>বাতিল</button>
         <button onClick={() => { if (!form.item_name || !form.qty || !form.rate) return alert("Item, Qty ও Rate দিন"); onSave(form); }} style={{ ...btnPrimary, width: "auto", padding: "9px 20px" }}>{item ? "✅ Update করুন" : "✅ যোগ করুন"}</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ============================================================
+// BOQ MULTI ITEM (bulk add, like Expenses bulk add)
+// ============================================================
+function BOQMultiItemModal({ stdRates, existingRooms, onSave, onClose }) {
+  const allRooms = [...new Set([...existingRooms, ...BOQ_ROOMS])];
+  const blankRow = () => ({ room_name: allRooms[0] || "Master Bedroom", code_no: "", item_no: 1, item_name: "", work_description: "", specification: "", unit: "sft", qty: "", rate: "" });
+  const [rows, setRows] = useState([blankRow()]);
+
+  const updateRow = (i, field, val) => {
+    setRows(r => r.map((row, idx) => {
+      if (idx !== i) return row;
+      if (field === "item_name") {
+        const match = stdRates.find(sr => sr.item_name === val);
+        if (match) return { ...row, item_name: val, unit: match.unit || row.unit, rate: match.rate ?? row.rate, work_description: match.description || match.work_description || row.work_description, specification: match.specification || row.specification };
+      }
+      return { ...row, [field]: val };
+    }));
+  };
+  const addRow = () => setRows(r => [...r, blankRow()]);
+  const removeRow = (i) => setRows(r => r.filter((_, idx) => idx !== i));
+
+  return (
+    <Modal title="একসাথে একাধিক BOQ Item যোগ করুন" onClose={onClose} size={1050}>
+      <datalist id="mi-std-item-names">{stdRates.map(sr => <option key={sr.id} value={sr.item_name} />)}</datalist>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: C.primaryBg }}>
+              {["Room", "Code No.", "Item No.", "Item Name *", "Description", "Specification", "Unit", "Qty", "Rate *", ""].map(h => (
+                <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                <td style={{ padding: 4 }}>
+                  <select style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 110 }} value={row.room_name} onChange={e => updateRow(i, "room_name", e.target.value)}>
+                    {allRooms.map(r => <option key={r}>{r}</option>)}
+                  </select>
+                </td>
+                <td style={{ padding: 4 }}><input style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, width: 60 }} value={row.code_no} onChange={e => updateRow(i, "code_no", e.target.value)} /></td>
+                <td style={{ padding: 4 }}><input type="number" style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, width: 50 }} value={row.item_no} onChange={e => updateRow(i, "item_no", e.target.value)} /></td>
+                <td style={{ padding: 4 }}><input list="mi-std-item-names" style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 140 }} value={row.item_name} onChange={e => updateRow(i, "item_name", e.target.value)} placeholder="Item name" /></td>
+                <td style={{ padding: 4 }}><input style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 160 }} value={row.work_description} onChange={e => updateRow(i, "work_description", e.target.value)} /></td>
+                <td style={{ padding: 4 }}><input style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, minWidth: 120 }} value={row.specification} onChange={e => updateRow(i, "specification", e.target.value)} /></td>
+                <td style={{ padding: 4 }}>
+                  <select style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, width: 70 }} value={row.unit} onChange={e => updateRow(i, "unit", e.target.value)}>
+                    {BOQ_UNITS.map(u => <option key={u}>{u}</option>)}
+                  </select>
+                </td>
+                <td style={{ padding: 4 }}><input type="number" style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, width: 60 }} value={row.qty} onChange={e => updateRow(i, "qty", e.target.value)} /></td>
+                <td style={{ padding: 4 }}><input type="number" style={{ ...inputStyle, padding: "5px 6px", fontSize: 11, width: 70 }} value={row.rate} onChange={e => updateRow(i, "rate", e.target.value)} /></td>
+                <td style={{ padding: 4 }}>{rows.length > 1 && <button onClick={() => removeRow(i)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 14 }}>🗑️</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button onClick={addRow} style={{ ...btnEdit, marginTop: 10 }}>➕ সারি যোগ করুন</button>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+        <button onClick={onClose} style={{ ...btnPrimary, width: "auto", background: C.gray400, padding: "9px 16px" }}>বাতিল</button>
+        <button onClick={() => onSave(rows)} style={{ ...btnPrimary, width: "auto", padding: "9px 20px" }}>✅ সব Item সংরক্ষণ করুন ({rows.filter(r => r.item_name && r.rate).length})</button>
       </div>
     </Modal>
   );
