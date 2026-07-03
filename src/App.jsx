@@ -167,10 +167,13 @@ const printSection = async (title, contentId) => {
     }
     /* Content */
     .pad-content { }
-    table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-    th { background: #3F5F45; color: white; padding: 5px 7px; text-align: left; border: 0.5px solid #2A3F2E; }
-    td { padding: 5px 7px; border-bottom: 0.5px solid #E0E0E0; font-size: 9pt; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt !important; }
+    th { background: #3F5F45 !important; color: white !important; padding: 4px 6px !important; text-align: left; border: 0.5px solid #2A3F2E; font-size: 8pt !important; font-weight: 600 !important; white-space: nowrap; }
+    td { padding: 4px 6px !important; border-bottom: 0.5px solid #E0E0E0; font-size: 8.5pt !important; }
     tr:nth-child(even) td { background: #F5F8F5; }
+    /* Columns/buttons that should never appear on paper (Action, Edit/Delete, on-screen-only badges) */
+    .no-print { display: none !important; }
+    button { display: none !important; }
     /* FOOTER - fixed at bottom of every printed page */
     .pad-footer-fixed {
       display: none;
@@ -4305,7 +4308,12 @@ function CPExpenses({ projectId }) {
       <Card>
         <div id="expenses-print" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার", "পেমেন্ট", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>
+              {["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}
+              <th className="no-print" style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>পেমেন্ট</th>
+              <th className="no-print" style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>স্ট্যাটাস</th>
+              <th className="no-print" style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>Action</th>
+            </tr></thead>
             <tbody>
               {items.map(item => (
                 <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
@@ -4317,12 +4325,12 @@ function CPExpenses({ projectId }) {
                   <td style={{ padding: "8px 10px" }}>{fmt(item.unit_price)}</td>
                   <td style={{ padding: "8px 10px", fontWeight: 700, color: C.red }}>{fmt(item.amount)}</td>
                   <td style={{ padding: "8px 10px", fontSize: 11 }}>{item.supplier || "—"}</td>
-                  <td style={{ padding: "8px 10px", fontSize: 11 }}>{item.payment_method}</td>
-                  <td style={{ padding: "8px 10px" }}><Badge label={item.payment_status} color={item.payment_status === "পরিশোধিত" ? "green" : "yellow"} /></td>
-                  <td style={{ padding: "8px 10px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
+                  <td className="no-print" style={{ padding: "8px 10px", fontSize: 11 }}>{item.payment_method}</td>
+                  <td className="no-print" style={{ padding: "8px 10px" }}><Badge label={item.payment_status} color={item.payment_status === "পরিশোধিত" ? "green" : "yellow"} /></td>
+                  <td className="no-print" style={{ padding: "8px 10px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
                 </tr>
               ))}
-              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: C.red, fontSize: 15 }}>{fmt(totalExpense)}</td><td colSpan={4}></td></tr>}
+              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: C.red, fontSize: 15 }}>{fmt(totalExpense)}</td><td></td><td className="no-print" colSpan={3}></td></tr>}
             </tbody>
           </table>
           {items.length === 0 && <div style={{ textAlign: "center", padding: 30, color: C.gray400 }}>কোনো খরচ নেই!</div>}
@@ -4931,7 +4939,11 @@ function IPExpenses({ projectId }) {
       <Card>
         <div id="ip-expenses-print" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>
+              {["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার"].map(h => <th key={h} style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>{h}</th>)}
+              <th className="no-print" style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>স্ট্যাটাস</th>
+              <th className="no-print" style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>Action</th>
+            </tr></thead>
             <tbody>
               {items.map(item => (
                 <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
@@ -4943,11 +4955,11 @@ function IPExpenses({ projectId }) {
                   <td style={{ padding: "8px 10px" }}>{fmt(item.unit_price)}</td>
                   <td style={{ padding: "8px 10px", fontWeight: 700, color: C.red }}>{fmt(item.amount)}</td>
                   <td style={{ padding: "8px 10px", fontSize: 11 }}>{item.supplier || "—"}</td>
-                  <td style={{ padding: "8px 10px" }}><Badge label={item.payment_status} color={item.payment_status === "পরিশোধিত" ? "green" : "yellow"} /></td>
-                  <td style={{ padding: "8px 10px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
+                  <td className="no-print" style={{ padding: "8px 10px" }}><Badge label={item.payment_status} color={item.payment_status === "পরিশোধিত" ? "green" : "yellow"} /></td>
+                  <td className="no-print" style={{ padding: "8px 10px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
                 </tr>
               ))}
-              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: C.red, fontSize: 15 }}>{fmt(totalExpense)}</td><td colSpan={3}></td></tr>}
+              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: C.red, fontSize: 15 }}>{fmt(totalExpense)}</td><td></td><td className="no-print" colSpan={2}></td></tr>}
             </tbody>
           </table>
           {items.length === 0 && <div style={{ textAlign: "center", padding: 30, color: C.gray400 }}>কোনো খরচ নেই!</div>}
