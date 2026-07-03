@@ -123,7 +123,7 @@ let ADMIN_PASS = localStorage.getItem("nic_password") || "noksha2024";
 // ============================================================
 const NOKSHA_LOGO_B64 = "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";
 
-const printSection = async (title, contentId) => {
+const printSection = async (title, contentId, customDate) => {
   const content = document.getElementById(contentId);
   if (!content) return;
   // Fetch logo as base64
@@ -236,8 +236,7 @@ const printSection = async (title, contentId) => {
     </div>
     <div class="doc-title">${title}</div>
     <div class="doc-date">
-      <span>তারিখ: ${new Date().toLocaleDateString("bn-BD")}</span>
-      <span>Date: ${new Date().toLocaleDateString("en-GB")}</span>
+      ${customDate ? `<span></span><span>Date: ${new Date(customDate).toLocaleDateString("en-GB")}</span>` : `<span>তারিখ: ${new Date().toLocaleDateString("bn-BD")}</span><span>Date: ${new Date().toLocaleDateString("en-GB")}</span>`}
     </div>
     <div class="pad-content">
       ${content.innerHTML}
@@ -895,7 +894,7 @@ function MoneyReceipts({ clients }) {
   };
 
   const del = async (id) => { if (!confirm("এই রশিদ মুছবেন?")) return; await supabase.from("money_receipts").delete().eq("id", id); load(); };
-  const doPrint = (r) => { setPrintRow(r); setTimeout(() => printSection("Money Receipt — " + r.receipt_no, "receipt-print"), 100); };
+  const doPrint = (r) => { setPrintRow(r); setTimeout(() => printSection("Money Receipt — " + r.receipt_no, "receipt-print", r.received_date), 100); };
 
   return (
     <div>
@@ -998,7 +997,7 @@ function MoneyReceipts({ clients }) {
             <div>
               <table style={{ marginBottom: 16 }}>
                 <tbody>
-                  <tr><td style={{ fontWeight: 700, width: "25%" }}>Receipt No:</td><td>{printRow.receipt_no}</td><td style={{ fontWeight: 700 }}>Date:</td><td>{printRow.received_date}</td></tr>
+                  <tr><td style={{ fontWeight: 700, width: "25%" }}>Receipt No:</td><td colSpan={3}>{printRow.receipt_no}</td></tr>
                 </tbody>
               </table>
               <div style={{ fontSize: "11pt", lineHeight: 2, marginBottom: 20 }}>
@@ -1084,7 +1083,7 @@ function Invoices({ clients }) {
 
   const markStatus = async (inv, status) => { await supabase.from("invoices").update({ status }).eq("id", inv.id); load(); };
   const del = async (id) => { if (!confirm("এই ইনভয়েস মুছবেন?")) return; await supabase.from("invoices").delete().eq("id", id); load(); };
-  const doPrint = (inv) => { setPrintRow(inv); setTimeout(() => printSection("Invoice — " + inv.invoice_no, "invoice-print"), 100); };
+  const doPrint = (inv) => { setPrintRow(inv); setTimeout(() => printSection("Invoice — " + inv.invoice_no, "invoice-print", inv.invoice_date), 100); };
 
   return (
     <div>
@@ -1213,8 +1212,8 @@ function Invoices({ clients }) {
             <div>
               <table style={{ marginBottom: 14 }}>
                 <tbody>
-                  <tr><td style={{ fontWeight: 700, width: "25%" }}>Invoice No:</td><td>{printRow.invoice_no}</td><td style={{ fontWeight: 700 }}>Date:</td><td>{printRow.invoice_date}</td></tr>
-                  <tr><td style={{ fontWeight: 700 }}>Bill To:</td><td>{clientById[printRow.client_id]?.name}</td><td style={{ fontWeight: 700 }}>Due Date:</td><td>{printRow.due_date || "—"}</td></tr>
+                  <tr><td style={{ fontWeight: 700, width: "25%" }}>Invoice No:</td><td>{printRow.invoice_no}</td><td style={{ fontWeight: 700 }}>Due Date:</td><td>{printRow.due_date || "—"}</td></tr>
+                  <tr><td style={{ fontWeight: 700 }}>Bill To:</td><td colSpan={3}>{clientById[printRow.client_id]?.name}</td></tr>
                   {printRow.project_name && <tr><td style={{ fontWeight: 700 }}>Project:</td><td colSpan={3}>{printRow.project_name}</td></tr>}
                 </tbody>
               </table>
@@ -1244,17 +1243,155 @@ function Invoices({ clients }) {
 // ============================================================
 // DOCUMENTS HUB (Money Receipt + Invoice)
 // ============================================================
+// ============================================================
+// QUOTATION / ESTIMATE
+// ============================================================
+function Quotations({ clients }) {
+  const [quotes, setQuotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [printRow, setPrintRow] = useState(null);
+  const blankItem = () => ({ item: "", description: "", amount: "" });
+  const blankForm = { client_id: "", title: "Office Interior Design Work", work_type: "Interior", location: "", quote_date: new Date().toISOString().split("T")[0], items: [blankItem()] };
+  const [form, setForm] = useState(blankForm);
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from("quotations").select("*").order("created_at", { ascending: false });
+    if (error) { console.error(error); setLoading(false); return; }
+    setQuotes(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const clientById = {}; clients.forEach(c => { clientById[c.id] = c; });
+  const totalOf = (items) => (items || []).reduce((s, it) => s + (+it.amount || 0), 0);
+
+  const updateItem = (i, field, val) => { const next = form.items.slice(); next[i] = { ...next[i], [field]: val }; setForm({ ...form, items: next }); };
+  const addItem = () => setForm({ ...form, items: [...form.items, blankItem()] });
+  const removeItem = (i) => setForm({ ...form, items: form.items.filter((_, idx) => idx !== i) });
+
+  const save = async () => {
+    if (!form.client_id || !form.title) return alert("ক্লায়েন্ট ও শিরোনাম আবশ্যক");
+    const total = totalOf(form.items);
+    const { error } = await supabase.from("quotations").insert([{ ...form, quote_date: form.quote_date || null, total }]);
+    if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
+    setShowModal(false); setForm(blankForm); load();
+  };
+
+  const del = async (id) => { if (!confirm("এই Quotation মুছবেন?")) return; await supabase.from("quotations").delete().eq("id", id); load(); };
+  const doPrint = (q) => { setPrintRow(q); setTimeout(() => printSection(q.title, "quote-print", q.quote_date), 100); };
+
+  return (
+    <div>
+      <SectionHeader title="📋 Quotation / Estimate" action="নতুন Quotation" onAction={() => setShowModal(true)} />
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : quotes.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো Quotation তৈরি হয়নি</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["শিরোনাম", "ক্লায়েন্ট", "ধরন", "মোট", "তারিখ", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {quotes.map(q => (
+                <tr key={q.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{q.title}</td>
+                  <td style={{ padding: "10px 14px" }}>{clientById[q.client_id]?.name || "—"}</td>
+                  <td style={{ padding: "10px 14px" }}><Badge label={q.work_type} color="primary" /></td>
+                  <td style={{ padding: "10px 14px", fontWeight: 700, color: C.green }}>{fmt(q.total)}</td>
+                  <td style={{ padding: "10px 14px" }}>{q.quote_date}</td>
+                  <td style={{ padding: "10px 14px" }}><div style={{ display: "flex", gap: 6 }}><button onClick={() => doPrint(q)} style={btnEdit}>🖨️</button><button onClick={() => del(q.id)} style={btnDanger}>🗑️</button></div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {showModal && (
+        <Modal title="নতুন Quotation / Estimate" onClose={() => setShowModal(false)} size={700}>
+          <FormField label="ক্লায়েন্ট *">
+            <select style={inputStyle} value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })}>
+              <option value="">— বাছাই করুন —</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </FormField>
+          <FormField label="শিরোনাম (Work Title) *"><input style={inputStyle} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Office Interior Design Work" /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="ধরন"><select style={inputStyle} value={form.work_type} onChange={e => setForm({ ...form, work_type: e.target.value })}><option>Interior</option><option>Construction</option></select></FormField>
+            <FormField label="তারিখ"><input type="date" style={inputStyle} value={form.quote_date} onChange={e => setForm({ ...form, quote_date: e.target.value })} /></FormField>
+          </div>
+          <FormField label="Location / Flat Location"><input style={inputStyle} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Niltuli, Mujib Sarak, Faridpur." /></FormField>
+
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.primaryDark }}>Items</div>
+              <button onClick={addItem} style={{ ...btnEdit, padding: "4px 10px", fontSize: 11 }}>➕ লাইন যোগ করুন</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {form.items.map((it, i) => (
+                <div key={i} style={{ border: "1px solid " + C.gray200, borderRadius: 8, padding: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 30px", gap: 8, marginBottom: 6 }}>
+                    <input value={it.item} onChange={e => updateItem(i, "item", e.target.value)} placeholder="Item (যেমন: Board work)" style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
+                    <input type="number" value={it.amount} onChange={e => updateItem(i, "amount", e.target.value)} placeholder="Amount" style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
+                    <button onClick={() => removeItem(i)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer" }}>🗑️</button>
+                  </div>
+                  <textarea value={it.description} onChange={e => updateItem(i, "description", e.target.value)} placeholder="Description of Work (প্রতি লাইনে বিস্তারিত লিখুন)" style={{ ...inputStyle, minHeight: 60, fontSize: 12 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.primaryDark, marginBottom: 14, padding: "10px 14px", background: C.primaryBg, borderRadius: 8 }}>
+            Total Amount: {fmt(totalOf(form.items))}
+          </div>
+          <button onClick={save} style={btnPrimary}>✅ তৈরি করুন</button>
+        </Modal>
+      )}
+
+      <div style={{ display: "none" }}>
+        <div id="quote-print">
+          {printRow && (
+            <div>
+              <div style={{ fontSize: "9pt", lineHeight: 1.8, marginBottom: 14 }}>
+                <div><strong>Client Name</strong>: {clientById[printRow.client_id]?.name}</div>
+                <div><strong>{printRow.work_type} Type:</strong> {printRow.work_type} {printRow.work_type === "Interior" ? "(IT)" : "(CS)"}</div>
+                {printRow.location && <div><strong>Flat Location:</strong> {printRow.location}</div>}
+              </div>
+              <table>
+                <thead><tr><th style={{ width: "6%" }}>SL</th><th style={{ width: "18%" }}>Item</th><th>Description of Work</th><th style={{ width: "15%" }}>Amount</th></tr></thead>
+                <tbody>
+                  {(printRow.items || []).map((it, i) => (
+                    <tr key={i}>
+                      <td style={{ textAlign: "center" }}>{String(i + 1).padStart(2, "0")}</td>
+                      <td>{it.item}</td>
+                      <td style={{ whiteSpace: "pre-line", textAlign: "center" }}>{it.description}</td>
+                      <td style={{ textAlign: "right" }}>{fmt(it.amount)}/-</td>
+                    </tr>
+                  ))}
+                  <tr><td colSpan={3} style={{ textAlign: "center", fontWeight: 700 }}>Total Amount</td><td style={{ textAlign: "right", fontWeight: 700 }}>{fmt(totalOf(printRow.items))}/-</td></tr>
+                </tbody>
+              </table>
+              <div style={{ marginTop: 14, fontSize: "9pt" }}>( In Word: {numToWordsTaka(totalOf(printRow.items))} )</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DocumentsHub({ clients }) {
   const [sub, setSub] = useState("receipt");
   return (
     <div>
       <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-        {[["receipt", "🧾 Money Receipt"], ["invoice", "📄 Invoice"]].map(([id, label]) => (
+        {[["receipt", "🧾 Money Receipt"], ["invoice", "📄 Invoice"], ["quotation", "📋 Quotation / Estimate"]].map(([id, label]) => (
           <button key={id} onClick={() => setSub(id)} style={{ background: sub === id ? C.primary : C.white, color: sub === id ? C.white : C.gray800, border: "1px solid " + (sub === id ? C.primary : C.gray200), borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
         ))}
       </div>
       {sub === "receipt" && <MoneyReceipts clients={clients} />}
       {sub === "invoice" && <Invoices clients={clients} />}
+      {sub === "quotation" && <Quotations clients={clients} />}
     </div>
   );
 }
