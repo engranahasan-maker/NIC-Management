@@ -2605,17 +2605,18 @@ function HRReports({ employees }) {
 // ============================================================
 // HR SYSTEM HUB (single consolidated menu with subcategories)
 // ============================================================
-function HRSystemHub({ data, onRefresh, lang }) {
-  const [sub, setSub] = useState("employees");
-  const subTabs = [
-    ["employees", "👷 কর্মী তালিকা"],
-    ["leave", "🌴 ছুটি ব্যবস্থাপনা"],
-    ["attendance", "📋 উপস্থিতি"],
-    ["smart_attendance", "⏱️ স্মার্ট অ্যাটেন্ডেন্স"],
-    ["payroll", "🧾 পে-রোল"],
-    ["recruitment", "🧑‍💼 নিয়োগ"],
-    ["reports", "📊 HR রিপোর্ট"],
-  ];
+function HRSystemHub({ data, onRefresh, lang, currentUser, isAdmin }) {
+  const visibleTabs = isAdmin ? HR_SUBTABS : HR_SUBTABS.filter(([id]) => (currentUser?.permissions || []).includes(id));
+  const [sub, setSub] = useState(visibleTabs[0]?.[0] || "hr_employees");
+
+  useEffect(() => {
+    if (!visibleTabs.some(([id]) => id === sub)) setSub(visibleTabs[0]?.[0] || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, currentUser?.permissions]);
+
+  if (visibleTabs.length === 0) {
+    return <Card><div style={{ textAlign: "center", padding: 30, color: C.gray600, fontSize: 13 }}>⚠️ আপনার এই সিস্টেমের কোনো অংশে access নেই। Admin-কে জানান।</div></Card>;
+  }
 
   return (
     <div>
@@ -2625,18 +2626,18 @@ function HRSystemHub({ data, onRefresh, lang }) {
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap", borderBottom: "1px solid " + C.gray100, paddingBottom: 12 }}>
-        {subTabs.map(([id, label]) => (
-          <button key={id} onClick={() => setSub(id)} style={{ background: sub === id ? C.primary : C.white, color: sub === id ? C.white : C.gray800, border: "1px solid " + (sub === id ? C.primary : C.gray200), borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{label}</button>
+        {visibleTabs.map(([id, icon, label]) => (
+          <button key={id} onClick={() => setSub(id)} style={{ background: sub === id ? C.primary : C.white, color: sub === id ? C.white : C.gray800, border: "1px solid " + (sub === id ? C.primary : C.gray200), borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{icon} {label}</button>
         ))}
       </div>
 
-      {sub === "employees" && <Employees data={data.employees} onRefresh={onRefresh} />}
-      {sub === "leave" && <LeaveManagement employees={data.employees} />}
-      {sub === "attendance" && <Attendance employees={data.employees} />}
-      {sub === "smart_attendance" && <SmartAttendance employees={data.employees} lang={lang} />}
-      {sub === "payroll" && <Payroll employees={data.employees} />}
-      {sub === "recruitment" && <Recruitment />}
-      {sub === "reports" && <HRReports employees={data.employees} />}
+      {sub === "hr_employees" && <Employees data={data.employees} onRefresh={onRefresh} />}
+      {sub === "hr_leave" && <LeaveManagement employees={data.employees} />}
+      {sub === "hr_attendance" && <Attendance employees={data.employees} />}
+      {sub === "hr_smart_attendance" && <SmartAttendance employees={data.employees} lang={lang} />}
+      {sub === "hr_payroll" && <Payroll employees={data.employees} />}
+      {sub === "hr_recruitment" && <Recruitment />}
+      {sub === "hr_reports" && <HRReports employees={data.employees} />}
     </div>
   );
 }
@@ -3903,7 +3904,18 @@ const ALL_MENU = [
 // Menu items that actually render something for an "employee" role account.
 // (Most screens above are admin-only dashboards and will show a blank page
 // if granted to an employee, since they require isAdmin to render.)
-const EMPLOYEE_SAFE_MENU = ALL_MENU.filter(m => m.id === "my_attendance" || m.id === "password");
+// HR & Payroll System sub-tabs — each independently assignable as a permission
+const HR_SUBTABS = [
+  ["hr_employees", "👷", "কর্মী তালিকা"],
+  ["hr_leave", "🌴", "ছুটি ব্যবস্থাপনা"],
+  ["hr_attendance", "📋", "উপস্থিতি"],
+  ["hr_smart_attendance", "⏱️", "স্মার্ট অ্যাটেন্ডেন্স"],
+  ["hr_payroll", "🧾", "পে-রোল"],
+  ["hr_recruitment", "🧑‍💼", "নিয়োগ"],
+  ["hr_reports", "📊", "HR রিপোর্ট"],
+];
+const hasHRAccess = (currentUser, isAdmin) => isAdmin || (currentUser?.role === "employee" && HR_SUBTABS.some(([id]) => (currentUser.permissions || []).includes(id)));
+const canAccessMenu = (currentUser, isAdmin, id) => isAdmin || (currentUser?.role === "employee" && (currentUser.permissions || []).includes(id));
 
 const LEAVE_TYPES = [
   { id: "casual", label: "নৈমিত্তিক ছুটি", quota: 10 },
@@ -4641,7 +4653,7 @@ function UserManagement({ employees, lang }) {
                 <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600 }}>
                   {u.role === "admin" ? "সব প্রজেক্ট" :
                    u.role === "site_engineer" ? (u.assigned_projects?.length > 0 ? projects.filter(p => u.assigned_projects.includes(p.id)).map(p => p.name).join(", ") : "কোনো প্রজেক্ট নেই") :
-                   (u.permissions?.length > 0 ? u.permissions.map(id => TXT[lang || "bn"][id] || id).join(", ") : "কোনো Access নেই")}
+                   (u.permissions?.length > 0 ? u.permissions.map(id => TXT[lang || "bn"][id] || HR_SUBTABS.find(h => h[0] === id)?.[2] || id).join(", ") : "কোনো Access নেই")}
                 </td>
                 <td style={{ padding: "10px 14px" }}><Badge label={u.is_active ? "✅ সক্রিয়" : "❌ নিষ্ক্রিয়"} color={u.is_active ? "green" : "red"} /></td>
                 <td style={{ padding: "10px 14px" }}>
@@ -4692,15 +4704,21 @@ function UserManagement({ employees, lang }) {
                 </select>
               </FormField>
               <FormField label={T.permissions_label}>
-                <div style={{ border: "1px solid " + C.gray200, borderRadius: 8, padding: 12, maxHeight: 220, overflowY: "auto" }}>
-                  {EMPLOYEE_SAFE_MENU.map(m => (
+                <div style={{ border: "1px solid " + C.gray200, borderRadius: 8, padding: 12, maxHeight: 320, overflowY: "auto" }}>
+                  {ALL_MENU.filter(m => m.id !== "hr_system").map(m => (
                     <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }} onClick={() => togglePermission(m.id)}>
                       <input type="checkbox" checked={(form.permissions || []).includes(m.id)} onChange={() => togglePermission(m.id)} style={{ accentColor: C.primary, width: 16, height: 16 }} />
                       <span style={{ fontSize: 13 }}>{m.icon} {TXT[lang || "bn"][m.id] || m.label}</span>
                     </div>
                   ))}
-                  <div style={{ fontSize: 11, color: C.gray400, marginTop: 6 }}>
-                    ℹ️ আপাতত শুধু এই স্ক্রিনগুলোই Employee-দের জন্য কাজ করে। অন্য কোনো screen (Dashboard, Finance ইত্যাদি) দরকার হলে জানান, বানিয়ে দেব।
+                  <div style={{ borderTop: "1px solid " + C.gray100, marginTop: 10, paddingTop: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.primaryDark, marginBottom: 8 }}>👥 HR ও পে-রোল সিস্টেম (sub-menu)</div>
+                    {HR_SUBTABS.map(([id, icon, label]) => (
+                      <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, marginLeft: 12, cursor: "pointer" }} onClick={() => togglePermission(id)}>
+                        <input type="checkbox" checked={(form.permissions || []).includes(id)} onChange={() => togglePermission(id)} style={{ accentColor: C.primary, width: 16, height: 16 }} />
+                        <span style={{ fontSize: 13 }}>{icon} {label}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </FormField>
@@ -4764,7 +4782,7 @@ export default function App() {
           </div>
         </div>
         <nav style={{ flex: 1, padding: "8px 0", overflowY: "auto" }}>
-          {ALL_MENU.filter(m => currentUser?.role === "employee" ? (currentUser.permissions || []).includes(m.id) : m.roles.includes(currentUser?.role || "admin")).map(m => (
+          {ALL_MENU.filter(m => currentUser?.role !== "employee" ? m.roles.includes(currentUser?.role || "admin") : m.id === "hr_system" ? hasHRAccess(currentUser, false) : (currentUser.permissions || []).includes(m.id)).map(m => (
             <button key={m.id} onClick={() => setActive(m.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: sideOpen ? "10px 18px" : "10px 0", justifyContent: sideOpen ? "flex-start" : "center", background: active === m.id ? "rgba(255,255,255,0.12)" : "none", border: "none", borderLeft: active === m.id ? "3px solid " + C.primaryLight : "3px solid transparent", color: active === m.id ? C.white : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12, fontWeight: active === m.id ? 700 : 400, fontFamily: "inherit", transition: "all 0.15s" }}>
               <span style={{ fontSize: 16, flexShrink: 0 }}>{m.icon}</span>
               {sideOpen && <span style={{ whiteSpace: "nowrap", fontSize: 13 }}>{TXT[lang][m.id] || m.label}</span>}
@@ -4811,19 +4829,19 @@ export default function App() {
             </div>
           ) : (
             <>
-              {active === "dashboard" && isAdmin && <Dashboard projects={data.projects} clients={data.clients} employees={data.employees} transactions={data.transactions} materials={data.materials} />}
-              {active === "projects" && isAdmin && <Projects data={data.projects} onRefresh={loadAll} />}
+              {active === "dashboard" && canAccessMenu(currentUser, isAdmin, "dashboard") && <Dashboard projects={data.projects} clients={data.clients} employees={data.employees} transactions={data.transactions} materials={data.materials} />}
+              {active === "projects" && canAccessMenu(currentUser, isAdmin, "projects") && <Projects data={data.projects} onRefresh={loadAll} />}
               {active === "construction" && <ConstructionProjects currentUser={currentUser} />}
               {active === "interior" && <InteriorProjects currentUser={currentUser} />}
-              {active === "boq" && isAdmin && <BOQSystem />}
-              {active === "clients" && isAdmin && <Clients data={data.clients} onRefresh={loadAll} />}
-              {active === "hr_system" && isAdmin && <HRSystemHub data={data} onRefresh={loadAll} lang={lang} />}
+              {active === "boq" && canAccessMenu(currentUser, isAdmin, "boq") && <BOQSystem />}
+              {active === "clients" && canAccessMenu(currentUser, isAdmin, "clients") && <Clients data={data.clients} onRefresh={loadAll} />}
+              {active === "hr_system" && hasHRAccess(currentUser, isAdmin) && <HRSystemHub data={data} onRefresh={loadAll} lang={lang} currentUser={currentUser} isAdmin={isAdmin} />}
               {active === "my_attendance" && (isAdmin || currentUser?.role === "employee") && <MyAttendance currentUser={currentUser} lang={lang} />}
-              {active === "finance" && isAdmin && <Finance data={data.transactions} onRefresh={loadAll} />}
-              {active === "site" && isAdmin && <SiteProgress data={data.siteProgress} projects={data.projects} onRefresh={loadAll} />}
-              {active === "materials" && isAdmin && <Materials data={data.materials} onRefresh={loadAll} />}
-              {active === "analytics" && isAdmin && <Analytics transactions={data.transactions} projects={data.projects} employees={data.employees} />}
-              {active === "users" && isAdmin && <UserManagement employees={data.employees} lang={lang} />}
+              {active === "finance" && canAccessMenu(currentUser, isAdmin, "finance") && <Finance data={data.transactions} onRefresh={loadAll} />}
+              {active === "site" && canAccessMenu(currentUser, isAdmin, "site") && <SiteProgress data={data.siteProgress} projects={data.projects} onRefresh={loadAll} />}
+              {active === "materials" && canAccessMenu(currentUser, isAdmin, "materials") && <Materials data={data.materials} onRefresh={loadAll} />}
+              {active === "analytics" && canAccessMenu(currentUser, isAdmin, "analytics") && <Analytics transactions={data.transactions} projects={data.projects} employees={data.employees} />}
+              {active === "users" && canAccessMenu(currentUser, isAdmin, "users") && <UserManagement employees={data.employees} lang={lang} />}
               {active === "password" && <PasswordChange />}
             </>
           )}
