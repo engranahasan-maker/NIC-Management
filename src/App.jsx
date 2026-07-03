@@ -843,14 +843,32 @@ function Employees({ data, onRefresh }) {
   const save = async () => {
     if (!form.name || !form.role) return alert("নাম ও পদবি আবশ্যক");
     const payload = { ...form, salary: +form.salary || 0 };
-    if (editItem) { await supabase.from("employees").update(payload).eq("id", editItem.id); }
-    else { await supabase.from("employees").insert([payload]); }
+    if (editItem) {
+      const { error } = await supabase.from("employees").update(payload).eq("id", editItem.id);
+      if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
+    } else {
+      const maxOrder = data.reduce((m, e) => Math.max(m, e.sort_order || 0), 0);
+      const { error } = await supabase.from("employees").insert([{ ...payload, sort_order: maxOrder + 1 }]);
+      if (error) return alert("❌ যোগ করতে ব্যর্থ: " + error.message);
+    }
     onRefresh(); setShowModal(false);
   };
 
   const deleteItem = async (id) => {
     if (!confirm("এই কর্মী মুছে ফেলবেন?")) return;
     await supabase.from("employees").delete().eq("id", id); onRefresh();
+  };
+
+  const moveEmployee = async (index, dir) => {
+    const targetIndex = index + dir;
+    if (targetIndex < 0 || targetIndex >= data.length) return;
+    const a = data[index], b = data[targetIndex];
+    const aOrder = a.sort_order ?? index, bOrder = b.sort_order ?? targetIndex;
+    await Promise.all([
+      supabase.from("employees").update({ sort_order: bOrder }).eq("id", a.id),
+      supabase.from("employees").update({ sort_order: aOrder }).eq("id", b.id),
+    ]);
+    onRefresh();
   };
 
   const handleExport = () => exportToExcel(data.map(e => ({ নাম: e.name, পদবি: e.role, বিভাগ: e.dept, ফোন: e.phone, বেতন: e.salary, যোগদান: e.join_date, স্ট্যাটাস: e.status })), "Employees", "Employees");
@@ -879,10 +897,16 @@ function Employees({ data, onRefresh }) {
       <Card>
         <div id="employees-content" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: C.primaryBg }}>{["নাম", "পদবি", "বিভাগ", "ফোন", "বেতন", "যোগদান", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: C.primaryBg }}>{["", "নাম", "পদবি", "বিভাগ", "ফোন", "বেতন", "যোগদান", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary }}>{h}</th>)}</tr></thead>
             <tbody>
-              {data.map(e => (
+              {data.map((e, i) => (
                 <tr key={e.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={ev => ev.currentTarget.style.background = C.primaryBg} onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}>
+                  <td style={{ padding: "10px 6px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                      <button onClick={() => moveEmployee(i, -1)} disabled={i === 0} style={{ background: "none", border: "none", cursor: i === 0 ? "default" : "pointer", color: i === 0 ? C.gray200 : C.gray600, fontSize: 12, lineHeight: 1, padding: 2 }}>▲</button>
+                      <button onClick={() => moveEmployee(i, 1)} disabled={i === data.length - 1} style={{ background: "none", border: "none", cursor: i === data.length - 1 ? "default" : "pointer", color: i === data.length - 1 ? C.gray200 : C.gray600, fontSize: 12, lineHeight: 1, padding: 2 }}>▼</button>
+                    </div>
+                  </td>
                   <td style={{ padding: "10px 14px" }}>
                     <a onClick={() => setViewItem(e)} style={{ cursor: "pointer", color: C.primaryDark, fontWeight: 700, textDecoration: "none" }}>
                       {e.photo_url ? <img src={e.photo_url} alt="" style={{ width: 24, height: 24, borderRadius: "50%", objectFit: "cover", verticalAlign: "middle", marginRight: 8 }} /> : null}
@@ -1327,6 +1351,80 @@ function DonutChart({ segments, size = 170, thickness = 24, centerLabel, centerS
 // ============================================================
 // HR SMART ATTENDANCE SYSTEM
 // ============================================================
+// ============================================================
+// SMART ATTENDANCE SUMMARY (Weekly / Monthly / Yearly)
+// ============================================================
+function SmartAttendanceSummary({ employees, lang }) {
+  const [range, setRange] = useState("week");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const getRange = () => {
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    if (range === "week") { const d = new Date(today); d.setDate(d.getDate() - 6); return { start: d.toISOString().split("T")[0], end: todayStr }; }
+    if (range === "month") { const d = new Date(today.getFullYear(), today.getMonth(), 1); return { start: d.toISOString().split("T")[0], end: todayStr }; }
+    const d = new Date(today.getFullYear(), 0, 1); return { start: d.toISOString().split("T")[0], end: todayStr };
+  };
+
+  const load = async () => {
+    setLoading(true);
+    const { start, end } = getRange();
+    const { data } = await supabase.from("attendance").select("*").gte("date", start).lte("date", end).eq("approved", true);
+    setRows(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [range]);
+
+  const { start, end } = getRange();
+  const summary = employees.map(e => {
+    const empRows = rows.filter(r => r.employee_id === e.id);
+    const present = empRows.filter(r => r.status === "উপস্থিত").length;
+    const absent = empRows.filter(r => r.status === "অনুপস্থিত").length;
+    const late = empRows.filter(r => r.status === "অর্ধদিন").length;
+    const leave = empRows.filter(r => r.status === "ছুটি").length;
+    const manual = empRows.filter(r => r.source === "manual_employee" || r.source === "manual_admin").length;
+    return { employee: e, present, absent, late, leave, manual };
+  });
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+        {[["week", "এই সপ্তাহ"], ["month", "এই মাস"], ["year", "এই বছর"]].map(([id, label]) => (
+          <button key={id} onClick={() => setRange(id)} style={{ background: range === id ? C.primary : C.white, color: range === id ? C.white : C.gray800, border: "1px solid " + (range === id ? C.primary : C.gray200), borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+      <div style={{ fontSize: 12, color: C.gray400, marginBottom: 12 }}>{start} → {end}</div>
+
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "বিভাগ", "উপস্থিত", "অনুপস্থিত", "অর্ধদিন", "ছুটি", "ম্যানুয়াল এন্ট্রি"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {summary.map(s => (
+                  <tr key={s.employee.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                    <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{s.employee.name}</td>
+                    <td style={{ padding: "10px 14px" }}><Badge label={s.employee.dept} color="primary" /></td>
+                    <td style={{ padding: "10px 14px", color: C.green, fontWeight: 700 }}>{fmtNum(s.present)}</td>
+                    <td style={{ padding: "10px 14px", color: C.red, fontWeight: 700 }}>{fmtNum(s.absent)}</td>
+                    <td style={{ padding: "10px 14px", color: "#856404", fontWeight: 700 }}>{fmtNum(s.late)}</td>
+                    <td style={{ padding: "10px 14px", color: C.blue, fontWeight: 700 }}>{fmtNum(s.leave)}</td>
+                    <td style={{ padding: "10px 14px", color: C.gray600 }}>{s.manual > 0 ? fmtNum(s.manual) + " দিন" : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {summary.some(s => s.manual > 0) && (
+          <div style={{ marginTop: 12, fontSize: 11, color: C.gray400, fontStyle: "italic" }}>* ম্যানুয়াল এন্ট্রি: Attendance by Manual System</div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 function SmartAttendance({ employees, lang }) {
   const T = TXT[lang];
   const today = new Date().toISOString().split("T")[0];
@@ -1334,6 +1432,7 @@ function SmartAttendance({ employees, lang }) {
   const [workUpdates, setWorkUpdates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState("today");
 
   const load = async () => {
     const { data } = await supabase.from("attendance").select("*").eq("date", today).order("id", { ascending: false });
@@ -1356,10 +1455,16 @@ function SmartAttendance({ employees, lang }) {
   const statusMap = { "উপস্থিত": "present", "অনুপস্থিত": "absent", "অর্ধদিন": "late", "ছুটি": "on_leave" };
   const reverseStatus = { present: "উপস্থিত", absent: "অনুপস্থিত", late: "অর্ধদিন", on_leave: "ছুটি" };
   const empById = {}; employees.forEach(e => { empById[e.id] = e; });
-  const attByEmp = {}; rows.forEach(r => { attByEmp[r.employee_id] = r; });
+
+  const pendingRows = rows.filter(r => r.source === "manual_employee" && r.approved === false);
+  const visibleRows = rows.filter(r => !(r.source === "manual_employee" && r.approved === false));
+  const attByEmp = {}; visibleRows.forEach(r => { attByEmp[r.employee_id] = r; });
+
+  const approveManual = async (id) => { await supabase.from("attendance").update({ approved: true }).eq("id", id); load(); };
+  const rejectManual = async (id) => { await supabase.from("attendance").delete().eq("id", id); load(); };
 
   const counts = { present: 0, absent: 0, late: 0, on_leave: 0 };
-  rows.forEach(r => { const k = statusMap[r.status]; if (k) counts[k]++; });
+  visibleRows.forEach(r => { const k = statusMap[r.status]; if (k) counts[k]++; });
   const total = employees.length;
 
   const donutSegments = [
@@ -1376,7 +1481,7 @@ function SmartAttendance({ employees, lang }) {
     return { dept: d, present, total: deptEmps.length };
   });
 
-  const recentSorted = [...rows].sort((a, b) => {
+  const recentSorted = [...visibleRows].sort((a, b) => {
     if (a.created_at && b.created_at) return new Date(b.created_at) - new Date(a.created_at);
     return (b.id || 0) - (a.id || 0);
   });
@@ -1386,10 +1491,10 @@ function SmartAttendance({ employees, lang }) {
 
   const quickMark = async (empId, statusKey) => {
     const status = reverseStatus[statusKey];
-    setRows(prev => [...prev, { id: "temp-" + empId, employee_id: empId, date: today, status, created_at: new Date().toISOString() }]);
+    setRows(prev => [...prev, { id: "temp-" + empId, employee_id: empId, date: today, status, created_at: new Date().toISOString(), source: "manual_admin", approved: true }]);
     const existing = await supabase.from("attendance").select("id").eq("employee_id", empId).eq("date", today).single();
-    if (existing.data) { await supabase.from("attendance").update({ status }).eq("id", existing.data.id); }
-    else { await supabase.from("attendance").insert([{ employee_id: empId, date: today, status }]); }
+    if (existing.data) { await supabase.from("attendance").update({ status, source: "manual_admin", approved: true }).eq("id", existing.data.id); }
+    else { await supabase.from("attendance").insert([{ employee_id: empId, date: today, status, source: "manual_admin", approved: true }]); }
     load();
   };
 
@@ -1409,6 +1514,34 @@ function SmartAttendance({ employees, lang }) {
           <button onClick={load} style={{ background: C.primaryBg, border: "1px solid " + C.primaryLight, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, color: C.primaryDark, fontFamily: "inherit" }}>🔄 {T.refresh}</button>
         </div>
       </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+        {[["today", "🗓️ আজ"], ["summary", "📅 সারাংশ (Weekly/Monthly/Yearly)"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ background: tab === id ? C.primary : C.white, color: tab === id ? C.white : C.gray800, border: "1px solid " + (tab === id ? C.primary : C.gray200), borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "summary" && <SmartAttendanceSummary employees={employees} lang={lang} />}
+
+      {tab === "today" && (<>
+
+      {pendingRows.length > 0 && (
+        <Card style={{ marginBottom: 16, border: "1px solid #FFE58F", background: "#FFFBE6" }}>
+          <div style={{ fontWeight: 700, color: "#856404", marginBottom: 12, fontSize: 14 }}>⏳ ম্যানুয়াল হাজিরা — অনুমোদনের অপেক্ষায় ({fmtNum(pendingRows.length)})</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pendingRows.map(r => (
+              <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: C.white, borderRadius: 8, padding: "8px 12px", flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.primaryDark }}>{empById[r.employee_id]?.name || "—"}</div>
+                <div style={{ fontSize: 11, color: C.gray600 }}>{r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => approveManual(r.id)} style={{ ...btnEdit, background: C.greenLight, color: C.green }}>✓ Approve</button>
+                  <button onClick={() => rejectManual(r.id)} style={btnDanger}>✕ Reject</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
         <StatCard icon="✅" label={T.present} value={fmtNum(counts.present)} color={C.greenLight} />
@@ -1537,6 +1670,7 @@ function SmartAttendance({ employees, lang }) {
           </div>
         )}
       </Card>
+      </>)}
     </div>
   );
 }
@@ -1596,7 +1730,15 @@ function MyAttendance({ currentUser, lang }) {
     setBusy(true); setShowCamera(false);
     const loc = await getLocation();
     const photoUrl = await uploadCapturedPhoto(photoDataUrl, "attendance");
-    await supabase.from("attendance").insert([{ employee_id: currentUser.employee_id, date: today, status: "উপস্থিত", photo_url: photoUrl, lat: loc?.lat || null, lng: loc?.lng || null, check_in_time: new Date().toISOString() }]);
+    await supabase.from("attendance").insert([{ employee_id: currentUser.employee_id, date: today, status: "উপস্থিত", photo_url: photoUrl, lat: loc?.lat || null, lng: loc?.lng || null, check_in_time: new Date().toISOString(), source: "live", approved: true }]);
+    await load(); setBusy(false);
+  };
+
+  const doManualCheckIn = async () => {
+    if (!confirm("ম্যানুয়াল হাজিরা জমা দিতে চান? এটা Admin অনুমোদন না করা পর্যন্ত চূড়ান্ত হবে না।")) return;
+    setBusy(true);
+    const loc = await getLocation();
+    await supabase.from("attendance").insert([{ employee_id: currentUser.employee_id, date: today, status: "উপস্থিত", lat: loc?.lat || null, lng: loc?.lng || null, check_in_time: new Date().toISOString(), source: "manual_employee", approved: false }]);
     await load(); setBusy(false);
   };
 
@@ -1626,6 +1768,17 @@ function MyAttendance({ currentUser, lang }) {
           <div style={{ fontSize: 40, marginBottom: 10 }}>🙋</div>
           <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 16, fontSize: 16 }}>{T.check_in}</div>
           <button disabled={busy} onClick={() => setShowCamera("checkin")} style={{ ...btnPrimary, maxWidth: 260, margin: "0 auto" }}>{busy ? T.uploading : "📸 " + T.check_in}</button>
+          <div style={{ marginTop: 10 }}>
+            <button disabled={busy} onClick={doManualCheckIn} style={{ background: "none", border: "none", color: C.gray600, fontSize: 12, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit" }}>ক্যামেরা কাজ করছে না? ম্যানুয়ালি হাজিরা দিন</button>
+          </div>
+        </Card>
+      ) : todayAtt.source === "manual_employee" && !todayAtt.approved ? (
+        <Card style={{ marginBottom: 16, display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", background: C.yellowLight }}>
+          <div style={{ fontSize: 30 }}>⏳</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: "#856404", fontWeight: 700, fontSize: 14, marginBottom: 4 }}>ম্যানুয়াল হাজিরা জমা হয়েছে — Admin অনুমোদনের অপেক্ষায়</div>
+            <div style={{ fontSize: 12, color: C.gray600 }}>{T.checked_in_at}: {new Date(todayAtt.check_in_time || todayAtt.created_at || Date.now()).toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
+          </div>
         </Card>
       ) : (
         <>
@@ -1770,21 +1923,23 @@ function Payroll({ employees }) {
   const load = async () => {
     setLoading(true);
     const { data } = await supabase.from("payroll_runs").select("*").eq("month", month);
-    setRuns(data || []);
+    const empOrder = {}; employees.forEach((e, i) => { empOrder[e.id] = i; });
+    const sorted = (data || []).slice().sort((a, b) => (empOrder[a.employee_id] ?? 999999) - (empOrder[b.employee_id] ?? 999999));
+    setRuns(sorted);
     setLoading(false);
   };
-  useEffect(() => { load(); }, [month]);
+  useEffect(() => { load(); }, [month, employees]);
 
   const empById = {}; employees.forEach(e => { empById[e.id] = e; });
   const subtotalOf = (items) => (items || []).reduce((s, it) => s + (+it.amount || 0), 0);
-  const netOf = (r) => subtotalOf(r.fixed_items) + subtotalOf(r.kpi_items) - ((+r.penalty_days || 0) * (+r.penalty_rate || 0));
+  const netOf = (r) => subtotalOf(r.fixed_items) + subtotalOf(r.kpi_items) - subtotalOf(r.penalty_items);
 
   const generateRun = async () => {
     const existingIds = new Set(runs.map(r => r.employee_id));
     const toCreate = employees.filter(e => e.status === "কর্মরত" && !existingIds.has(e.id)).map(e => ({
       employee_id: e.id, month, position: e.role,
       fixed_items: [{ label: "Fixed Salary", amount: e.salary || 0, note: "মাসিক মূল বেতন" }],
-      kpi_items: [], penalty_days: 0, penalty_rate: 0,
+      kpi_items: [], penalty_items: [],
       net_pay: e.salary || 0, status: "Unpaid", disbursement_channel: "Bank",
     }));
     if (toCreate.length === 0) return alert("এই মাসের জন্য সব কর্মীর পে-রোল ইতিমধ্যে তৈরি আছে");
@@ -1794,22 +1949,33 @@ function Payroll({ employees }) {
 
   const openEdit = (r) => {
     setEditItem(r);
+    let penaltyItems = r.penalty_items && r.penalty_items.length ? r.penalty_items : [];
+    if (penaltyItems.length === 0 && (r.penalty_days || 0) * (r.penalty_rate || 0) > 0) {
+      penaltyItems = [{ label: `Penalty (${r.penalty_days} দিন × ৳${r.penalty_rate})`, amount: r.penalty_days * r.penalty_rate, note: "ধারা ১২.১" }];
+    }
     setForm({
       position: r.position || empById[r.employee_id]?.role || "",
       fixed_items: r.fixed_items && r.fixed_items.length ? r.fixed_items : [{ label: "Fixed Salary", amount: r.basic || 0, note: "" }],
       kpi_items: r.kpi_items || [],
-      penalty_days: r.penalty_days || 0,
-      penalty_rate: r.penalty_rate || 0,
+      penalty_items: penaltyItems,
+      quick_days: "", quick_rate: "",
       disbursement_channel: r.disbursement_channel || "Bank",
       disbursement_date: r.disbursement_date || "",
     });
   };
 
+  const addQuickPenalty = () => {
+    const days = +form.quick_days || 0, rate = +form.quick_rate || 0;
+    if (days <= 0 || rate <= 0) return;
+    const line = { label: `Penalty (${days} দিন × ৳${rate})`, amount: days * rate, note: "ধারা ১২.১ অনুযায়ী" };
+    setForm({ ...form, penalty_items: [...form.penalty_items, line], quick_days: "", quick_rate: "" });
+  };
+
   const saveEdit = async () => {
-    const net = subtotalOf(form.fixed_items) + subtotalOf(form.kpi_items) - ((+form.penalty_days || 0) * (+form.penalty_rate || 0));
+    const net = subtotalOf(form.fixed_items) + subtotalOf(form.kpi_items) - subtotalOf(form.penalty_items);
     await supabase.from("payroll_runs").update({
       position: form.position, fixed_items: form.fixed_items, kpi_items: form.kpi_items,
-      penalty_days: +form.penalty_days || 0, penalty_rate: +form.penalty_rate || 0,
+      penalty_items: form.penalty_items,
       net_pay: net, disbursement_channel: form.disbursement_channel, disbursement_date: form.disbursement_date || null,
     }).eq("id", editItem.id);
     setEditItem(null); setForm(null); load();
@@ -1835,8 +2001,7 @@ function Payroll({ employees }) {
   const handleExport = () => exportToExcel(runs.map(r => ({
     নাম: empById[r.employee_id]?.name, পদবি: r.position || empById[r.employee_id]?.role,
     "Fixed সাবটোটাল": subtotalOf(r.fixed_items), "KPI সাবটোটাল": subtotalOf(r.kpi_items),
-    "পেনাল্টি দিন": r.penalty_days || 0, "পেনাল্টি হার": r.penalty_rate || 0,
-    "মোট পেনাল্টি": (r.penalty_days || 0) * (r.penalty_rate || 0),
+    "মোট পেনাল্টি": subtotalOf(r.penalty_items),
     "নীট প্রদেয়": netOf(r), চ্যানেল: r.disbursement_channel || "Bank", স্ট্যাটাস: r.status,
   })), "Payroll", "Payroll_" + month);
 
@@ -1856,10 +2021,11 @@ function Payroll({ employees }) {
       const kpi_items = kpiAmt > 0 ? [{ label: "Overall Project Delivery KPI Bonus", amount: kpiAmt, note: "" }] : [];
       const penalty_days = +row["Penalty Days"] || +row["পেনাল্টি দিন"] || 0;
       const penalty_rate = +row["Penalty Rate"] || +row["পেনাল্টি হার"] || 0;
-      const net_pay = subtotalOf(fixed_items) + subtotalOf(kpi_items) - (penalty_days * penalty_rate);
+      const penalty_items = penalty_days * penalty_rate > 0 ? [{ label: `Penalty (${penalty_days} দিন × ৳${penalty_rate})`, amount: penalty_days * penalty_rate, note: "ধারা ১২.১" }] : [];
+      const net_pay = subtotalOf(fixed_items) + subtotalOf(kpi_items) - subtotalOf(penalty_items);
 
       const existing = runs.find(r => r.employee_id === emp.id);
-      const payload = { employee_id: emp.id, month, position: emp.role, fixed_items, kpi_items, penalty_days, penalty_rate, net_pay, status: existing?.status || "Unpaid", disbursement_channel: existing?.disbursement_channel || "Bank" };
+      const payload = { employee_id: emp.id, month, position: emp.role, fixed_items, kpi_items, penalty_items, net_pay, status: existing?.status || "Unpaid", disbursement_channel: existing?.disbursement_channel || "Bank" };
       if (existing) await supabase.from("payroll_runs").update(payload).eq("id", existing.id);
       else await supabase.from("payroll_runs").insert([payload]);
       count++;
@@ -1871,12 +2037,12 @@ function Payroll({ employees }) {
   const totalNet = runs.reduce((s, r) => s + netOf(r), 0);
   const totalFixed = runs.reduce((s, r) => s + subtotalOf(r.fixed_items), 0);
   const totalKpi = runs.reduce((s, r) => s + subtotalOf(r.kpi_items), 0);
-  const totalPenalty = runs.reduce((s, r) => s + ((r.penalty_days || 0) * (r.penalty_rate || 0)), 0);
+  const totalPenalty = runs.reduce((s, r) => s + subtotalOf(r.penalty_items), 0);
   const paidCount = runs.filter(r => r.status === "Paid").length;
 
   const channelGroups = DISBURSEMENT_CHANNELS.map(ch => {
     const items = runs.filter(r => (r.disbursement_channel || "Bank") === ch.id);
-    return { ...ch, count: items.length, totalDeduction: items.reduce((s, r) => s + ((r.penalty_days || 0) * (r.penalty_rate || 0)), 0), totalNet: items.reduce((s, r) => s + netOf(r), 0), date: items[0]?.disbursement_date || "" };
+    return { ...ch, count: items.length, totalDeduction: items.reduce((s, r) => s + subtotalOf(r.penalty_items), 0), totalNet: items.reduce((s, r) => s + netOf(r), 0), date: items[0]?.disbursement_date || "" };
   }).filter(g => g.count > 0);
   const channelDonut = channelGroups.map(g => ({ value: g.count, color: g.color }));
   const earningsDonut = [
@@ -1902,6 +2068,7 @@ function Payroll({ employees }) {
           <button onClick={generateRun} style={{ ...btnPrimary, width: "auto", margin: 0 }}>⚙️ এই মাসের পে-রোল তৈরি করুন</button>
           <button onClick={handleExport} style={btnEdit}>⬇️ Excel Download</button>
           <button onClick={() => uploadRef.current?.click()} style={btnEdit}>⬆️ Excel Upload</button>
+          <button onClick={() => printSection("মোট বেতন খরচ — " + month, "payroll-total-content")} style={btnEdit}>🖨️ মোট খরচ প্রিন্ট</button>
           <input type="file" ref={uploadRef} onChange={handleUpload} accept=".xlsx,.xls,.csv" style={{ display: "none" }} />
         </div>
       </div>
@@ -1927,7 +2094,7 @@ function Payroll({ employees }) {
                       <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600 }}>{r.position || empById[r.employee_id]?.role}</td>
                       <td style={{ padding: "10px 14px", color: C.green }}>{fmt(subtotalOf(r.fixed_items))}</td>
                       <td style={{ padding: "10px 14px", color: C.green }}>{fmt(subtotalOf(r.kpi_items))}</td>
-                      <td style={{ padding: "10px 14px", color: C.red }}>-{fmt((r.penalty_days || 0) * (r.penalty_rate || 0))}</td>
+                      <td style={{ padding: "10px 14px", color: C.red }}>-{fmt(subtotalOf(r.penalty_items))}</td>
                       <td style={{ padding: "10px 14px", fontWeight: 700, color: C.primaryDark }}>{fmt(netOf(r))}</td>
                       <td style={{ padding: "10px 14px" }}><Badge label={DISBURSEMENT_CHANNELS.find(c => c.id === (r.disbursement_channel || "Bank"))?.label} color="primary" /></td>
                       <td style={{ padding: "10px 14px" }}><Badge label={r.status === "Paid" ? "✅ Paid" : "⏳ Unpaid"} color={r.status === "Paid" ? "green" : "yellow"} /></td>
@@ -2009,13 +2176,16 @@ function Payroll({ employees }) {
 
           <LineItemsEditor title="Fixed Part" items={form.fixed_items} onChange={items => setForm({ ...form, fixed_items: items })} color={C.primary} />
           <LineItemsEditor title="KPI Part" items={form.kpi_items} onChange={items => setForm({ ...form, kpi_items: items })} color={C.green} />
+          <LineItemsEditor title="Penalty (ধারা ১২.১ অনুযায়ী)" items={form.penalty_items} onChange={items => setForm({ ...form, penalty_items: items })} color={C.red} />
 
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.red, marginBottom: 8 }}>Penalty (ধারা ১২.১ অনুযায়ী)</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 8 }}>
-            <FormField label="পেনাল্টি প্রয়োজ্য দিন সংখ্যা"><input type="number" style={inputStyle} value={form.penalty_days} onChange={e => setForm({ ...form, penalty_days: e.target.value })} /></FormField>
-            <FormField label="প্রতিদিন পেনাল্টি হার (৳)"><input type="number" style={inputStyle} value={form.penalty_rate} onChange={e => setForm({ ...form, penalty_rate: e.target.value })} /></FormField>
+          <div style={{ border: "1px dashed " + C.gray200, borderRadius: 8, padding: 10, marginBottom: 16, background: C.gray50 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.gray600, marginBottom: 6 }}>⚡ দ্রুত হিসাব (দিন × দৈনিক হার) — যোগ করলে উপরের Penalty লিস্টে লাইন হিসেবে যুক্ত হবে</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "end" }}>
+              <FormField label="দিন সংখ্যা"><input type="number" style={inputStyle} value={form.quick_days} onChange={e => setForm({ ...form, quick_days: e.target.value })} /></FormField>
+              <FormField label="দৈনিক হার (৳)"><input type="number" style={inputStyle} value={form.quick_rate} onChange={e => setForm({ ...form, quick_rate: e.target.value })} /></FormField>
+              <button onClick={addQuickPenalty} style={{ ...btnEdit, marginBottom: 14 }}>➕ যোগ করুন</button>
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: C.red, marginBottom: 16 }}>মোট পেনাল্টি কর্তন: {fmt((+form.penalty_days || 0) * (+form.penalty_rate || 0))}</div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 8 }}>
             <FormField label="বিতরণ চ্যানেল">
@@ -2027,11 +2197,34 @@ function Payroll({ employees }) {
           </div>
 
           <div style={{ fontSize: 15, fontWeight: 700, color: C.primaryDark, marginBottom: 14, padding: "10px 14px", background: C.primaryBg, borderRadius: 8 }}>
-            মোট প্রদেয় (Net Payable): {fmt(subtotalOf(form.fixed_items) + subtotalOf(form.kpi_items) - ((+form.penalty_days || 0) * (+form.penalty_rate || 0)))}
+            মোট প্রদেয় (Net Payable): {fmt(subtotalOf(form.fixed_items) + subtotalOf(form.kpi_items) - subtotalOf(form.penalty_items))}
           </div>
           <button onClick={saveEdit} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
         </Modal>
       )}
+
+      {/* Hidden total cost content for printing */}
+      <div style={{ display: "none" }}>
+        <div id="payroll-total-content">
+          <table>
+            <thead><tr><th>কর্মী</th><th>পদবি</th><th>Fixed</th><th>KPI</th><th>পেনাল্টি</th><th>নীট প্রদেয়</th><th>চ্যানেল</th></tr></thead>
+            <tbody>
+              {runs.map(r => (
+                <tr key={r.id}>
+                  <td>{empById[r.employee_id]?.name}</td>
+                  <td>{r.position || empById[r.employee_id]?.role}</td>
+                  <td>{fmt(subtotalOf(r.fixed_items))}</td>
+                  <td>{fmt(subtotalOf(r.kpi_items))}</td>
+                  <td>-{fmt(subtotalOf(r.penalty_items))}</td>
+                  <td style={{ fontWeight: 700 }}>{fmt(netOf(r))}</td>
+                  <td>{DISBURSEMENT_CHANNELS.find(c => c.id === (r.disbursement_channel || "Bank"))?.label}</td>
+                </tr>
+              ))}
+              <tr><td colSpan={5} style={{ fontWeight: 700 }}>সর্বমোট (Total Office Salary Cost)</td><td style={{ fontWeight: 700 }}>{fmt(totalNet)}</td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Hidden payslip content for printing — matches Salary Sheet layout */}
       <div style={{ display: "none" }}>
@@ -2065,11 +2258,10 @@ function Payroll({ employees }) {
 
               <div style={{ fontWeight: 700, margin: "10px 0 4px" }}>Penalty (ধারা ১২.১ অনুযায়ী)</div>
               <table style={{ marginBottom: 10 }}>
-                <thead><tr><th>বিবরণ</th><th>পরিমাণ</th><th>নোট</th></tr></thead>
+                <thead><tr><th>বিবরণ</th><th>পরিমাণ (৳)</th><th>নোট</th></tr></thead>
                 <tbody>
-                  <tr><td>পেনাল্টি প্রযোজ্য দিন সংখ্যা</td><td>{fmtNum(printRow.penalty_days || 0)}</td><td>সংখ্যা</td></tr>
-                  <tr><td>প্রতিদিন পেনাল্টি হার (৳)</td><td>{fmt(printRow.penalty_rate || 0)}</td><td>ব্যবস্থাপনার সিদ্ধান্তে</td></tr>
-                  <tr><td style={{ fontWeight: 700 }}>মোট পেনাল্টি কর্তন</td><td style={{ fontWeight: 700 }}>{fmt((printRow.penalty_days || 0) * (printRow.penalty_rate || 0))}</td><td></td></tr>
+                  {(printRow.penalty_items || []).length === 0 ? <tr><td colSpan={3}>—</td></tr> : (printRow.penalty_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td>{fmt(it.amount)}</td><td>{it.note}</td></tr>)}
+                  <tr><td style={{ fontWeight: 700 }}>মোট পেনাল্টি কর্তন</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.penalty_items))}</td><td></td></tr>
                 </tbody>
               </table>
 
@@ -2619,6 +2811,17 @@ function Dashboard({ projects, clients, employees, transactions, materials }) {
   const totalExpense = transactions.filter(t => t.type === "ব্যয়").reduce((s, t) => s + (t.amount || 0), 0);
   const activeProjects = projects.filter(p => p.status === "চলমান").length;
   const lowStock = materials.filter(m => m.stock < m.min_stock).length;
+  const [officeSalaryCost, setOfficeSalaryCost] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const month = new Date().toISOString().slice(0, 7);
+      const { data } = await supabase.from("payroll_runs").select("fixed_items, kpi_items, penalty_items").eq("month", month);
+      const subtotalOf = (items) => (items || []).reduce((s, it) => s + (+it.amount || 0), 0);
+      const total = (data || []).reduce((s, r) => s + subtotalOf(r.fixed_items) + subtotalOf(r.kpi_items) - subtotalOf(r.penalty_items), 0);
+      setOfficeSalaryCost(total);
+    })();
+  }, []);
 
   return (
     <div>
@@ -2635,6 +2838,7 @@ function Dashboard({ projects, clients, employees, transactions, materials }) {
           <StatCard icon="👷" label="কর্মী সংখ্যা" value={fmtNum(employees.length)} color="#FFF8E1" />
           <StatCard icon="💰" label="মোট আয়" value={fmt(totalIncome)} color="#F0FFF4" />
           <StatCard icon="💸" label="মোট ব্যয়" value={fmt(totalExpense)} color="#FFF5F5" />
+          <StatCard icon="🧾" label="Office Salary Staff (এই মাস)" value={fmt(officeSalaryCost)} color="#FFF8E1" />
           <StatCard icon="📦" label="কম স্টক" value={fmtNum(lowStock)} color={lowStock > 0 ? "#FFEBEE" : "#F0FFF4"} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
@@ -4536,7 +4740,7 @@ export default function App() {
     const [p, c, e, t, s, m] = await Promise.all([
       supabase.from("projects").select("*").order("created_at", { ascending: false }),
       supabase.from("clients").select("*").order("created_at", { ascending: false }),
-      supabase.from("employees").select("*").order("created_at", { ascending: false }),
+      supabase.from("employees").select("*").order("sort_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }),
       supabase.from("transactions").select("*").order("created_at", { ascending: false }),
       supabase.from("site_progress").select("*").order("created_at", { ascending: false }),
       supabase.from("materials").select("*").order("created_at", { ascending: false }),
