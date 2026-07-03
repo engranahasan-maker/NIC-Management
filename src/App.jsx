@@ -1449,6 +1449,159 @@ function DonutChart({ segments, size = 170, thickness = 24, centerLabel, centerS
 // ============================================================
 // SMART ATTENDANCE SUMMARY (Weekly / Monthly / Yearly)
 // ============================================================
+// ============================================================
+// ATTENDANCE REQUESTS (Overtime / Regularization / On Duty / Hourly Permission / Shift Change)
+// ============================================================
+function AttendanceRequestsPanel({ employees, type, shifts }) {
+  const cfg = REQUEST_TYPES[type];
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("pending");
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("attendance_requests").select("*").eq("type", type).order("applied_at", { ascending: false });
+    setRequests(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [type]);
+
+  const empById = {}; employees.forEach(e => { empById[String(e.id)] = e; });
+  const shiftById = {}; (shifts || []).forEach(s => { shiftById[s.id] = s; });
+
+  const decide = async (id, status) => {
+    await supabase.from("attendance_requests").update({ status, decided_at: new Date().toISOString() }).eq("id", id);
+    load();
+  };
+
+  const pending = requests.filter(r => r.status === "Pending");
+  const approved = requests.filter(r => r.status === "Approved");
+  const rejected = requests.filter(r => r.status === "Rejected");
+  const list = tab === "pending" ? pending : tab === "approved" ? approved : rejected;
+
+  return (
+    <div>
+      <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>{cfg.icon} {cfg.label}</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {[["pending", "⏳ অপেক্ষমাণ (" + pending.length + ")"], ["approved", "✅ অনুমোদিত"], ["rejected", "❌ বাতিল"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ background: tab === id ? C.primary : C.white, color: tab === id ? C.white : C.gray800, border: "1px solid " + (tab === id ? C.primary : C.gray200), borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : list.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো রেকর্ড নেই</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "তারিখ", cfg.needsShift ? "চাহিত Shift" : "সময়", "কারণ", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {list.map(r => (
+                <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{empById[String(r.employee_id)]?.name || "—"}</td>
+                  <td style={{ padding: "10px 14px" }}>{r.date}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12 }}>
+                    {cfg.needsShift ? (shiftById[r.requested_shift_id]?.name || "—") : (r.start_time && r.end_time ? r.start_time + " - " + r.end_time : "—")}
+                  </td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.reason}</td>
+                  <td style={{ padding: "10px 14px" }}><Badge label={r.status === "Pending" ? "⏳ Pending" : r.status === "Approved" ? "✅ Approved" : "❌ Rejected"} color={r.status === "Pending" ? "yellow" : r.status === "Approved" ? "green" : "red"} /></td>
+                  <td style={{ padding: "10px 14px" }}>
+                    {r.status === "Pending" && (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={() => decide(r.id, "Approved")} style={{ ...btnEdit, background: C.greenLight, color: C.green }}>✓</button>
+                        <button onClick={() => decide(r.id, "Rejected")} style={btnDanger}>✕</button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// SHIFT MANAGEMENT
+// ============================================================
+function ShiftManagement({ employees }) {
+  const [shifts, setShifts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ name: "", start_time: "09:00", end_time: "18:00" });
+
+  const load = async () => { setLoading(true); const { data } = await supabase.from("shifts").select("*").order("start_time"); setShifts(data || []); setLoading(false); };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    if (!form.name) return alert("Shift নাম আবশ্যক");
+    await supabase.from("shifts").insert([form]);
+    setShowModal(false); setForm({ name: "", start_time: "09:00", end_time: "18:00" }); load();
+  };
+
+  const assignShift = async (empId, shiftId) => {
+    await supabase.from("employees").update({ shift_id: shiftId || null }).eq("id", empId);
+  };
+
+  const del = async (id) => { if (!confirm("এই শিফট মুছবেন?")) return; await supabase.from("shifts").delete().eq("id", id); load(); };
+
+  return (
+    <div>
+      <SectionHeader title="🔄 Shift ব্যবস্থাপনা" action="নতুন Shift" onAction={() => setShowModal(true)} />
+      <Card style={{ marginBottom: 16 }}>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : shifts.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো Shift তৈরি হয়নি</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["Shift নাম", "শুরু", "শেষ", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {shifts.map(s => (
+                <tr key={s.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{s.name}</td>
+                  <td style={{ padding: "10px 14px" }}>{s.start_time}</td>
+                  <td style={{ padding: "10px 14px" }}>{s.end_time}</td>
+                  <td style={{ padding: "10px 14px" }}><button onClick={() => del(s.id)} style={btnDanger}>🗑️</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      <Card>
+        <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>👷 কর্মী-ভিত্তিক Shift নির্ধারণ</div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "বর্তমান Shift"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+          <tbody>
+            {employees.map(e => (
+              <tr key={e.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{e.name}</td>
+                <td style={{ padding: "10px 14px" }}>
+                  <select defaultValue={e.shift_id || ""} onChange={ev => assignShift(e.id, ev.target.value || null)} style={{ ...inputStyle, width: "auto" }}>
+                    <option value="">— নির্ধারিত নয় —</option>
+                    {shifts.map(s => <option key={s.id} value={s.id}>{s.name} ({s.start_time}-{s.end_time})</option>)}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      {showModal && (
+        <Modal title="নতুন Shift তৈরি করুন" onClose={() => setShowModal(false)}>
+          <FormField label="Shift নাম *"><input style={inputStyle} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Day Shift" /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="শুরুর সময়"><input type="time" style={inputStyle} value={form.start_time} onChange={e => setForm({ ...form, start_time: e.target.value })} /></FormField>
+            <FormField label="শেষের সময়"><input type="time" style={inputStyle} value={form.end_time} onChange={e => setForm({ ...form, end_time: e.target.value })} /></FormField>
+          </div>
+          <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 function SmartAttendanceSummary({ employees, lang }) {
   const [range, setRange] = useState("week");
   const [rows, setRows] = useState([]);
@@ -1528,6 +1681,9 @@ function SmartAttendance({ employees, lang }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("today");
+  const [shifts, setShifts] = useState([]);
+
+  useEffect(() => { supabase.from("shifts").select("*").then(({ data }) => setShifts(data || [])); }, []);
 
   const load = async () => {
     const { data } = await supabase.from("attendance").select("*").eq("date", today).order("id", { ascending: false });
@@ -1553,7 +1709,7 @@ function SmartAttendance({ employees, lang }) {
 
   const pendingRows = rows.filter(r => r.source === "manual_employee" && r.approved === false);
   const visibleRows = rows.filter(r => !(r.source === "manual_employee" && r.approved === false));
-  const attByEmp = {}; visibleRows.forEach(r => { attByEmp[r.employee_id] = r; });
+  const attByEmp = {}; visibleRows.forEach(r => { attByEmp[String(r.employee_id)] = r; });
 
   const approveManual = async (id) => { await supabase.from("attendance").update({ approved: true }).eq("id", id); load(); };
   const rejectManual = async (id) => { await supabase.from("attendance").delete().eq("id", id); load(); };
@@ -1572,7 +1728,7 @@ function SmartAttendance({ employees, lang }) {
   const depts = [...new Set(employees.map(e => e.dept || "—"))];
   const deptSummary = depts.map(d => {
     const deptEmps = employees.filter(e => (e.dept || "—") === d);
-    const present = deptEmps.filter(e => statusMap[attByEmp[e.id]?.status] === "present").length;
+    const present = deptEmps.filter(e => statusMap[attByEmp[String(e.id)]?.status] === "present").length;
     return { dept: d, present, total: deptEmps.length };
   });
 
@@ -1582,7 +1738,7 @@ function SmartAttendance({ employees, lang }) {
   });
   const recentList = recentSorted.slice(0, 8);
 
-  const unmarked = employees.filter(e => !attByEmp[e.id]).filter(e => (e.name || "").toLowerCase().includes(search.toLowerCase()));
+  const unmarked = employees.filter(e => !attByEmp[String(e.id)]).filter(e => (e.name || "").toLowerCase().includes(search.toLowerCase()));
 
   const quickMark = async (empId, statusKey) => {
     const status = reverseStatus[statusKey];
@@ -1610,13 +1766,19 @@ function SmartAttendance({ employees, lang }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
-        {[["today", "🗓️ আজ"], ["summary", "📅 সারাংশ (Weekly/Monthly/Yearly)"]].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ background: tab === id ? C.primary : C.white, color: tab === id ? C.white : C.gray800, border: "1px solid " + (tab === id ? C.primary : C.gray200), borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+      <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
+        {[["today", "🗓️ আজ"], ["summary", "📅 সারাংশ (Weekly/Monthly/Yearly)"], ["overtime", "⏱️ Overtime"], ["regularization", "✏️ Regularization"], ["on_duty", "🚗 On Duty"], ["hourly_permission", "⏳ Hourly Permission"], ["shift", "🔄 Shift"], ["shift_change", "🔁 Shift Change"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ background: tab === id ? C.primary : C.white, color: tab === id ? C.white : C.gray800, border: "1px solid " + (tab === id ? C.primary : C.gray200), borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{label}</button>
         ))}
       </div>
 
       {tab === "summary" && <SmartAttendanceSummary employees={employees} lang={lang} />}
+      {tab === "overtime" && <AttendanceRequestsPanel employees={employees} type="overtime" shifts={shifts} />}
+      {tab === "regularization" && <AttendanceRequestsPanel employees={employees} type="regularization" shifts={shifts} />}
+      {tab === "on_duty" && <AttendanceRequestsPanel employees={employees} type="on_duty" shifts={shifts} />}
+      {tab === "hourly_permission" && <AttendanceRequestsPanel employees={employees} type="hourly_permission" shifts={shifts} />}
+      {tab === "shift" && <ShiftManagement employees={employees} />}
+      {tab === "shift_change" && <AttendanceRequestsPanel employees={employees} type="shift_change" shifts={shifts} />}
 
       {tab === "today" && (<>
 
@@ -1785,6 +1947,64 @@ function MyAttendance({ currentUser, lang }) {
   const [myLeaves, setMyLeaves] = useState([]);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaveForm, setLeaveForm] = useState({ leave_type: "casual", start_date: "", end_date: "", reason: "" });
+  const [myRequests, setMyRequests] = useState([]);
+  const [shiftsList, setShiftsList] = useState([]);
+  const [showReqModal, setShowReqModal] = useState(false);
+  const [reqType, setReqType] = useState("overtime");
+  const [reqForm, setReqForm] = useState({ date: today, start_time: "", end_time: "", reason: "", requested_shift_id: "" });
+  const [myReviews, setMyReviews] = useState([]);
+  const [selfReviewDraft, setSelfReviewDraft] = useState({});
+  const [myTimeLogs, setMyTimeLogs] = useState([]);
+  const [showTimeLogModal, setShowTimeLogModal] = useState(false);
+  const [timeLogForm, setTimeLogForm] = useState({ task: "", project_name: "", date: today, start_time: "", end_time: "", note: "" });
+  const [myTickets, setMyTickets] = useState([]);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [ticketForm, setTicketForm] = useState({ subject: "", category: TICKET_CATEGORIES[0], description: "" });
+
+  const loadReviews = async () => {
+    if (!currentUser?.employee_id) return;
+    const { data } = await supabase.from("performance_reviews").select("*").eq("employee_id", currentUser.employee_id).order("created_at", { ascending: false });
+    setMyReviews(data || []);
+  };
+  const submitSelfReview = async (id) => {
+    await supabase.from("performance_reviews").update({ self_review: selfReviewDraft[id] || "", status: "Submitted" }).eq("id", id);
+    loadReviews();
+  };
+
+  const loadTimeLogs = async () => {
+    if (!currentUser?.employee_id) return;
+    const { data } = await supabase.from("time_logs").select("*").eq("employee_id", currentUser.employee_id).order("date", { ascending: false }).limit(20);
+    setMyTimeLogs(data || []);
+  };
+  const submitTimeLog = async () => {
+    if (!timeLogForm.task || !timeLogForm.date) return alert("কাজ ও তারিখ দিন");
+    await supabase.from("time_logs").insert([{ employee_id: currentUser.employee_id, ...timeLogForm }]);
+    setShowTimeLogModal(false); setTimeLogForm({ task: "", project_name: "", date: today, start_time: "", end_time: "", note: "" }); loadTimeLogs();
+  };
+
+  const loadTickets = async () => {
+    if (!currentUser?.employee_id) return;
+    const { data } = await supabase.from("hr_tickets").select("*").eq("employee_id", currentUser.employee_id).order("created_at", { ascending: false });
+    setMyTickets(data || []);
+  };
+  const submitTicket = async () => {
+    if (!ticketForm.subject) return alert("বিষয় লিখুন");
+    await supabase.from("hr_tickets").insert([{ employee_id: currentUser.employee_id, ...ticketForm, status: "Open" }]);
+    setShowTicketModal(false); setTicketForm({ subject: "", category: TICKET_CATEGORIES[0], description: "" }); loadTickets();
+  };
+
+  const loadRequests = async () => {
+    if (!currentUser?.employee_id) return;
+    const { data } = await supabase.from("attendance_requests").select("*").eq("employee_id", currentUser.employee_id).order("applied_at", { ascending: false });
+    setMyRequests(data || []);
+  };
+
+  const submitRequest = async () => {
+    if (!reqForm.date) return alert("তারিখ দিন");
+    if (REQUEST_TYPES[reqType].needsShift && !reqForm.requested_shift_id) return alert("Shift বাছাই করুন");
+    await supabase.from("attendance_requests").insert([{ employee_id: currentUser.employee_id, type: reqType, date: reqForm.date, start_time: reqForm.start_time || null, end_time: reqForm.end_time || null, reason: reqForm.reason, requested_shift_id: reqForm.requested_shift_id || null, status: "Pending" }]);
+    setShowReqModal(false); setReqForm({ date: today, start_time: "", end_time: "", reason: "", requested_shift_id: "" }); loadRequests();
+  };
 
   const loadLeaves = async () => {
     if (!currentUser?.employee_id) return;
@@ -1812,6 +2032,11 @@ function MyAttendance({ currentUser, lang }) {
   useEffect(() => {
     load();
     loadLeaves();
+    loadRequests();
+    loadReviews();
+    loadTimeLogs();
+    loadTickets();
+    supabase.from("shifts").select("*").then(({ data }) => setShiftsList(data || []));
     if (!currentUser?.employee_id) return;
     const channel = supabase.channel("my-att-" + currentUser.employee_id)
       .on("postgres_changes", { event: "*", schema: "public", table: "work_updates", filter: `employee_id=eq.${currentUser.employee_id}` }, load)
@@ -1978,6 +2203,157 @@ function MyAttendance({ currentUser, lang }) {
           </div>
           <FormField label="কারণ"><textarea style={{ ...inputStyle, minHeight: 60 }} value={leaveForm.reason} onChange={e => setLeaveForm({ ...leaveForm, reason: e.target.value })} /></FormField>
           <button onClick={submitLeave} style={btnPrimary}>✅ আবেদন জমা দিন</button>
+        </Modal>
+      )}
+
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 15 }}>📝 বিশেষ অনুরোধ (Overtime / Regularization / On Duty / Permission / Shift)</div>
+          <button onClick={() => setShowReqModal(true)} style={{ ...btnEdit, background: C.primary, color: C.white }}>➕ নতুন অনুরোধ</button>
+        </div>
+        {myRequests.length === 0 ? (
+          <div style={{ color: C.gray400, textAlign: "center", padding: 16, fontSize: 13 }}>এখনো কোনো অনুরোধ করেননি</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {myRequests.map(r => (
+              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.gray50, borderRadius: 8, padding: "8px 12px", flexWrap: "wrap", gap: 6 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.primaryDark }}>{REQUEST_TYPES[r.type]?.icon} {REQUEST_TYPES[r.type]?.label}</div>
+                  <div style={{ fontSize: 11, color: C.gray600 }}>{r.date}{r.start_time ? " · " + r.start_time + "-" + r.end_time : ""}</div>
+                </div>
+                <Badge label={r.status === "Pending" ? "⏳ Pending" : r.status === "Approved" ? "✅ Approved" : "❌ Rejected"} color={r.status === "Pending" ? "yellow" : r.status === "Approved" ? "green" : "red"} />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {showReqModal && (
+        <Modal title="নতুন অনুরোধ জমা দিন" onClose={() => setShowReqModal(false)}>
+          <FormField label="অনুরোধের ধরন">
+            <select style={inputStyle} value={reqType} onChange={e => setReqType(e.target.value)}>
+              {Object.entries(REQUEST_TYPES).map(([id, cfg]) => <option key={id} value={id}>{cfg.icon} {cfg.label}</option>)}
+            </select>
+          </FormField>
+          <FormField label="তারিখ *"><input type="date" style={inputStyle} value={reqForm.date} onChange={e => setReqForm({ ...reqForm, date: e.target.value })} /></FormField>
+          {REQUEST_TYPES[reqType].needsTime && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <FormField label="শুরুর সময়"><input type="time" style={inputStyle} value={reqForm.start_time} onChange={e => setReqForm({ ...reqForm, start_time: e.target.value })} /></FormField>
+              <FormField label="শেষের সময়"><input type="time" style={inputStyle} value={reqForm.end_time} onChange={e => setReqForm({ ...reqForm, end_time: e.target.value })} /></FormField>
+            </div>
+          )}
+          {REQUEST_TYPES[reqType].needsShift && (
+            <FormField label="চাহিত Shift *">
+              <select style={inputStyle} value={reqForm.requested_shift_id} onChange={e => setReqForm({ ...reqForm, requested_shift_id: e.target.value })}>
+                <option value="">— বাছাই করুন —</option>
+                {shiftsList.map(s => <option key={s.id} value={s.id}>{s.name} ({s.start_time}-{s.end_time})</option>)}
+              </select>
+            </FormField>
+          )}
+          <FormField label="কারণ"><textarea style={{ ...inputStyle, minHeight: 60 }} value={reqForm.reason} onChange={e => setReqForm({ ...reqForm, reason: e.target.value })} /></FormField>
+          <button onClick={submitRequest} style={btnPrimary}>✅ জমা দিন</button>
+        </Modal>
+      )}
+
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>🎯 আমার পারফরম্যান্স</div>
+        {myReviews.length === 0 ? (
+          <div style={{ color: C.gray400, textAlign: "center", padding: 16, fontSize: 13 }}>এখনো কোনো Review Cycle নেই</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {myReviews.map(r => (
+              <div key={r.id} style={{ border: "1px solid " + C.gray100, borderRadius: 10, padding: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: C.primaryDark }}>{r.period}</div>
+                  <Badge label={r.status} color={r.status === "Completed" ? "green" : r.status === "Submitted" ? "yellow" : "gray"} />
+                </div>
+                {r.goals && <div style={{ fontSize: 12, color: C.gray600, marginBottom: 8 }}><strong>লক্ষ্য:</strong> {r.goals}</div>}
+                {r.status === "Draft" ? (
+                  <>
+                    <textarea value={selfReviewDraft[r.id] ?? r.self_review ?? ""} onChange={e => setSelfReviewDraft({ ...selfReviewDraft, [r.id]: e.target.value })} placeholder="নিজের performance সম্পর্কে লিখুন..." style={{ ...inputStyle, minHeight: 60, marginBottom: 8 }} />
+                    <button onClick={() => submitSelfReview(r.id)} style={{ ...btnEdit, background: C.primary, color: C.white }}>✅ Self Review জমা দিন</button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 12, color: C.gray600, marginBottom: 4 }}><strong>Self Review:</strong> {r.self_review || "—"}</div>
+                    {r.manager_review && <div style={{ fontSize: 12, color: C.gray600, marginBottom: 4 }}><strong>Manager Review:</strong> {r.manager_review}</div>}
+                    {r.rating && <div style={{ fontSize: 13 }}>{"⭐".repeat(r.rating)}</div>}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 15 }}>⏲️ টাইম ট্র্যাকার</div>
+          <button onClick={() => setShowTimeLogModal(true)} style={{ ...btnEdit, background: C.primary, color: C.white }}>➕ সময় লগ করুন</button>
+        </div>
+        {myTimeLogs.length === 0 ? (
+          <div style={{ color: C.gray400, textAlign: "center", padding: 16, fontSize: 13 }}>এখনো কোনো লগ নেই</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {myTimeLogs.map(l => (
+              <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.gray50, borderRadius: 8, padding: "8px 12px", flexWrap: "wrap", gap: 6 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.primaryDark }}>{l.task}{l.project_name ? " — " + l.project_name : ""}</div>
+                  <div style={{ fontSize: 11, color: C.gray600 }}>{l.date}{l.start_time ? " · " + l.start_time + "-" + l.end_time : ""}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 15 }}>🎫 HR Help Desk</div>
+          <button onClick={() => setShowTicketModal(true)} style={{ ...btnEdit, background: C.primary, color: C.white }}>➕ নতুন টিকেট</button>
+        </div>
+        {myTickets.length === 0 ? (
+          <div style={{ color: C.gray400, textAlign: "center", padding: 16, fontSize: 13 }}>এখনো কোনো টিকেট নেই</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {myTickets.map(t => (
+              <div key={t.id} style={{ border: "1px solid " + C.gray100, borderRadius: 8, padding: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.primaryDark }}>{t.subject}</div>
+                  <Badge label={t.status} color={t.status === "Open" ? "yellow" : t.status === "In Progress" ? "primary" : "green"} />
+                </div>
+                <div style={{ fontSize: 11, color: C.gray600, marginBottom: t.admin_reply ? 6 : 0 }}>{t.category}</div>
+                {t.admin_reply && <div style={{ fontSize: 11, color: C.primaryDark, background: C.primaryBg, borderRadius: 6, padding: 6 }}><strong>Admin:</strong> {t.admin_reply}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {showTimeLogModal && (
+        <Modal title="সময় লগ করুন" onClose={() => setShowTimeLogModal(false)}>
+          <FormField label="কাজ *"><input style={inputStyle} value={timeLogForm.task} onChange={e => setTimeLogForm({ ...timeLogForm, task: e.target.value })} placeholder="যেমন: BOQ তৈরি" /></FormField>
+          <FormField label="প্রজেক্ট (ঐচ্ছিক)"><input style={inputStyle} value={timeLogForm.project_name} onChange={e => setTimeLogForm({ ...timeLogForm, project_name: e.target.value })} /></FormField>
+          <FormField label="তারিখ *"><input type="date" style={inputStyle} value={timeLogForm.date} onChange={e => setTimeLogForm({ ...timeLogForm, date: e.target.value })} /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="শুরুর সময়"><input type="time" style={inputStyle} value={timeLogForm.start_time} onChange={e => setTimeLogForm({ ...timeLogForm, start_time: e.target.value })} /></FormField>
+            <FormField label="শেষের সময়"><input type="time" style={inputStyle} value={timeLogForm.end_time} onChange={e => setTimeLogForm({ ...timeLogForm, end_time: e.target.value })} /></FormField>
+          </div>
+          <FormField label="নোট"><textarea style={{ ...inputStyle, minHeight: 50 }} value={timeLogForm.note} onChange={e => setTimeLogForm({ ...timeLogForm, note: e.target.value })} /></FormField>
+          <button onClick={submitTimeLog} style={btnPrimary}>✅ লগ করুন</button>
+        </Modal>
+      )}
+
+      {showTicketModal && (
+        <Modal title="নতুন HR টিকেট" onClose={() => setShowTicketModal(false)}>
+          <FormField label="বিষয় *"><input style={inputStyle} value={ticketForm.subject} onChange={e => setTicketForm({ ...ticketForm, subject: e.target.value })} /></FormField>
+          <FormField label="Category">
+            <select style={inputStyle} value={ticketForm.category} onChange={e => setTicketForm({ ...ticketForm, category: e.target.value })}>
+              {TICKET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </FormField>
+          <FormField label="বিবরণ"><textarea style={{ ...inputStyle, minHeight: 80 }} value={ticketForm.description} onChange={e => setTicketForm({ ...ticketForm, description: e.target.value })} /></FormField>
+          <button onClick={submitTicket} style={btnPrimary}>✅ জমা দিন</button>
         </Modal>
       )}
     </div>
@@ -2716,6 +3092,255 @@ function HRReports({ employees }) {
 }
 
 // ============================================================
+// PERFORMANCE MANAGEMENT
+// ============================================================
+function PerformanceManagement({ employees }) {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [form, setForm] = useState({ employee_id: "", period: "", goals: "" });
+  const [reviewForm, setReviewForm] = useState({ manager_review: "", rating: 3, status: "Completed" });
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("performance_reviews").select("*").order("created_at", { ascending: false });
+    setReviews(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const empById = {}; employees.forEach(e => { empById[String(e.id)] = e; });
+
+  const createCycle = async () => {
+    if (!form.employee_id || !form.period) return alert("কর্মী ও মেয়াদ আবশ্যক");
+    await supabase.from("performance_reviews").insert([{ ...form, status: "Draft" }]);
+    setShowModal(false); setForm({ employee_id: "", period: "", goals: "" }); load();
+  };
+
+  const openReview = (r) => { setEditItem(r); setReviewForm({ manager_review: r.manager_review || "", rating: r.rating || 3, status: "Completed" }); };
+  const saveReview = async () => {
+    await supabase.from("performance_reviews").update({ manager_review: reviewForm.manager_review, rating: +reviewForm.rating, status: reviewForm.status, reviewed_at: new Date().toISOString() }).eq("id", editItem.id);
+    setEditItem(null); load();
+  };
+
+  const statusColor = { Draft: "gray", Submitted: "yellow", Completed: "green" };
+
+  return (
+    <div>
+      <SectionHeader title="🎯 পারফরম্যান্স ম্যানেজমেন্ট" action="নতুন Review Cycle" onAction={() => setShowModal(true)} />
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : reviews.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো Review Cycle তৈরি হয়নি</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "মেয়াদ", "লক্ষ্য (Goals)", "Self Review", "রেটিং", "স্ট্যাটাস", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {reviews.map(r => (
+                <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{empById[String(r.employee_id)]?.name || "—"}</td>
+                  <td style={{ padding: "10px 14px" }}>{r.period}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.goals}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.self_review || "—"}</td>
+                  <td style={{ padding: "10px 14px" }}>{r.rating ? "⭐".repeat(r.rating) : "—"}</td>
+                  <td style={{ padding: "10px 14px" }}><Badge label={r.status} color={statusColor[r.status] || "gray"} /></td>
+                  <td style={{ padding: "10px 14px" }}><button onClick={() => openReview(r)} style={btnEdit}>✏️ Review</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {showModal && (
+        <Modal title="নতুন Review Cycle তৈরি করুন" onClose={() => setShowModal(false)}>
+          <FormField label="কর্মী *">
+            <select style={inputStyle} value={form.employee_id} onChange={e => setForm({ ...form, employee_id: e.target.value })}>
+              <option value="">— বাছাই করুন —</option>
+              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          </FormField>
+          <FormField label="মেয়াদ *"><input style={inputStyle} value={form.period} onChange={e => setForm({ ...form, period: e.target.value })} placeholder="যেমন: 2026-Q3" /></FormField>
+          <FormField label="লক্ষ্য (Goals)"><textarea style={{ ...inputStyle, minHeight: 80 }} value={form.goals} onChange={e => setForm({ ...form, goals: e.target.value })} /></FormField>
+          <button onClick={createCycle} style={btnPrimary}>✅ তৈরি করুন</button>
+        </Modal>
+      )}
+
+      {editItem && (
+        <Modal title={"Review — " + (empById[String(editItem.employee_id)]?.name || "")} onClose={() => setEditItem(null)}>
+          <div style={{ fontSize: 12, color: C.gray600, marginBottom: 10 }}><strong>লক্ষ্য:</strong> {editItem.goals || "—"}</div>
+          <div style={{ fontSize: 12, color: C.gray600, marginBottom: 14 }}><strong>Self Review:</strong> {editItem.self_review || "কর্মী এখনো জমা দেননি"}</div>
+          <FormField label="Manager Review"><textarea style={{ ...inputStyle, minHeight: 80 }} value={reviewForm.manager_review} onChange={e => setReviewForm({ ...reviewForm, manager_review: e.target.value })} /></FormField>
+          <FormField label="রেটিং (১-৫)">
+            <select style={inputStyle} value={reviewForm.rating} onChange={e => setReviewForm({ ...reviewForm, rating: e.target.value })}>
+              {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{"⭐".repeat(n)} ({n})</option>)}
+            </select>
+          </FormField>
+          <button onClick={saveReview} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// TIME TRACKER
+// ============================================================
+function TimeTracker({ employees }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState({ start: new Date(new Date().setDate(new Date().getDate() - 6)).toISOString().split("T")[0], end: new Date().toISOString().split("T")[0] });
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("time_logs").select("*").gte("date", range.start).lte("date", range.end).order("date", { ascending: false });
+    setLogs(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [range]);
+
+  const empById = {}; employees.forEach(e => { empById[String(e.id)] = e; });
+  const hoursOf = (l) => { if (!l.start_time || !l.end_time) return 0; const [sh, sm] = l.start_time.split(":").map(Number), [eh, em] = l.end_time.split(":").map(Number); return Math.max(((eh * 60 + em) - (sh * 60 + sm)) / 60, 0); };
+
+  const byEmployee = {};
+  logs.forEach(l => { const k = String(l.employee_id); byEmployee[k] = (byEmployee[k] || 0) + hoursOf(l); });
+  const totalHours = logs.reduce((s, l) => s + hoursOf(l), 0);
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20 }}>
+        <StatCard icon="⏲️" label="মোট লগ হওয়া ঘন্টা" value={fmtNum(totalHours.toFixed(1))} color={C.primaryBg} />
+        <StatCard icon="👷" label="সক্রিয় কর্মী" value={fmtNum(Object.keys(byEmployee).length)} color={C.greenLight} />
+      </div>
+
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+        <input type="date" value={range.start} onChange={e => setRange({ ...range, start: e.target.value })} style={{ ...inputStyle, width: "auto" }} />
+        <span style={{ color: C.gray600 }}>→</span>
+        <input type="date" value={range.end} onChange={e => setRange({ ...range, end: e.target.value })} style={{ ...inputStyle, width: "auto" }} />
+      </div>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 12, fontSize: 14 }}>কর্মী-ভিত্তিক মোট ঘন্টা</div>
+        {Object.keys(byEmployee).length === 0 ? <div style={{ color: C.gray400, textAlign: "center", padding: 16, fontSize: 13 }}>কোনো লগ নেই</div> : (
+          Object.entries(byEmployee).map(([empId, hrs]) => (
+            <div key={empId} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid " + C.gray100, fontSize: 13 }}>
+              <span style={{ color: C.gray800 }}>{empById[empId]?.name || "—"}</span>
+              <span style={{ fontWeight: 700, color: C.primaryDark }}>{hrs.toFixed(1)} ঘন্টা</span>
+            </div>
+          ))
+        )}
+      </Card>
+
+      <Card>
+        <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 12, fontSize: 14 }}>সব লগ</div>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : logs.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো লগ নেই</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "তারিখ", "কাজ", "সময়", "ঘন্টা", "নোট"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {logs.map(l => (
+                <tr key={l.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{empById[String(l.employee_id)]?.name || "—"}</td>
+                  <td style={{ padding: "10px 14px" }}>{l.date}</td>
+                  <td style={{ padding: "10px 14px" }}>{l.task}{l.project_name ? " (" + l.project_name + ")" : ""}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12 }}>{l.start_time} - {l.end_time}</td>
+                  <td style={{ padding: "10px 14px", fontWeight: 700 }}>{hoursOf(l).toFixed(1)}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: C.gray600 }}>{l.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// HR HELP DESK
+// ============================================================
+const TICKET_CATEGORIES = ["পে-রোল", "ছুটি", "IT সমস্যা", "সাধারণ", "অভিযোগ"];
+
+function HRHelpDesk({ employees }) {
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("open");
+  const [editItem, setEditItem] = useState(null);
+  const [reply, setReply] = useState("");
+  const [status, setStatus] = useState("Resolved");
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("hr_tickets").select("*").order("created_at", { ascending: false });
+    setTickets(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const empById = {}; employees.forEach(e => { empById[String(e.id)] = e; });
+
+  const openTicket = (t) => { setEditItem(t); setReply(t.admin_reply || ""); setStatus(t.status === "Open" ? "In Progress" : t.status); };
+  const saveReply = async () => {
+    await supabase.from("hr_tickets").update({ admin_reply: reply, status, resolved_at: (status === "Resolved" || status === "Closed") ? new Date().toISOString() : null }).eq("id", editItem.id);
+    setEditItem(null); load();
+  };
+
+  const open = tickets.filter(t => t.status === "Open" || t.status === "In Progress");
+  const resolved = tickets.filter(t => t.status === "Resolved" || t.status === "Closed");
+  const list = tab === "open" ? open : resolved;
+  const statusColor = { Open: "yellow", "In Progress": "primary", Resolved: "green", Closed: "gray" };
+
+  return (
+    <div>
+      <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 14, fontSize: 15 }}>🎫 HR Help Desk</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {[["open", "🟡 খোলা (" + open.length + ")"], ["resolved", "✅ সমাধান হয়েছে"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ background: tab === id ? C.primary : C.white, color: tab === id ? C.white : C.gray800, border: "1px solid " + (tab === id ? C.primary : C.gray200), borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : list.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো টিকেট নেই</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "বিষয়", "Category", "স্ট্যাটাস", "তারিখ", "Action"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {list.map(t => (
+                <tr key={t.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.primaryDark }}>{empById[String(t.employee_id)]?.name || "—"}</td>
+                  <td style={{ padding: "10px 14px", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.subject}</td>
+                  <td style={{ padding: "10px 14px" }}><Badge label={t.category} color="primary" /></td>
+                  <td style={{ padding: "10px 14px" }}><Badge label={t.status} color={statusColor[t.status] || "gray"} /></td>
+                  <td style={{ padding: "10px 14px", fontSize: 12 }}>{new Date(t.created_at).toLocaleDateString("bn-BD")}</td>
+                  <td style={{ padding: "10px 14px" }}><button onClick={() => openTicket(t)} style={btnEdit}>💬 উত্তর দিন</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {editItem && (
+        <Modal title={"টিকেট — " + editItem.subject} onClose={() => setEditItem(null)}>
+          <div style={{ fontSize: 12, color: C.gray600, marginBottom: 4 }}><strong>কর্মী:</strong> {empById[String(editItem.employee_id)]?.name}</div>
+          <div style={{ fontSize: 12, color: C.gray600, marginBottom: 14 }}><strong>বিবরণ:</strong> {editItem.description}</div>
+          <FormField label="Admin Reply"><textarea style={{ ...inputStyle, minHeight: 80 }} value={reply} onChange={e => setReply(e.target.value)} /></FormField>
+          <FormField label="স্ট্যাটাস">
+            <select style={inputStyle} value={status} onChange={e => setStatus(e.target.value)}>
+              <option value="In Progress">🔵 In Progress</option>
+              <option value="Resolved">✅ Resolved</option>
+              <option value="Closed">⚪ Closed</option>
+            </select>
+          </FormField>
+          <button onClick={saveReply} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // HR SYSTEM HUB (single consolidated menu with subcategories)
 // ============================================================
 function HRSystemHub({ data, onRefresh, lang, currentUser, isAdmin }) {
@@ -2751,6 +3376,9 @@ function HRSystemHub({ data, onRefresh, lang, currentUser, isAdmin }) {
       {sub === "hr_payroll" && <Payroll employees={data.employees} />}
       {sub === "hr_recruitment" && <Recruitment />}
       {sub === "hr_reports" && <HRReports employees={data.employees} />}
+      {sub === "hr_performance" && <PerformanceManagement employees={data.employees} />}
+      {sub === "hr_timetracker" && <TimeTracker employees={data.employees} />}
+      {sub === "hr_helpdesk" && <HRHelpDesk employees={data.employees} />}
     </div>
   );
 }
@@ -4026,6 +4654,9 @@ const HR_SUBTABS = [
   ["hr_payroll", "🧾", "পে-রোল"],
   ["hr_recruitment", "🧑‍💼", "নিয়োগ"],
   ["hr_reports", "📊", "HR রিপোর্ট"],
+  ["hr_performance", "🎯", "পারফরম্যান্স"],
+  ["hr_timetracker", "⏲️", "টাইম ট্র্যাকার"],
+  ["hr_helpdesk", "🎫", "HR Help Desk"],
 ];
 const hasHRAccess = (currentUser, isAdmin) => isAdmin || (currentUser?.role === "employee" && HR_SUBTABS.some(([id]) => (currentUser.permissions || []).includes(id)));
 const canAccessMenu = (currentUser, isAdmin, id) => isAdmin || (currentUser?.role === "employee" && (currentUser.permissions || []).includes(id));
@@ -4044,6 +4675,14 @@ const DISBURSEMENT_CHANNELS = [
   { id: "Nagad", label: "নগদ", color: "#FF5A5F" },
   { id: "Cash", label: "নগদ (Cash)", color: "#3498DB" },
 ];
+
+const REQUEST_TYPES = {
+  overtime: { label: "ওভারটাইম (Overtime)", icon: "⏱️", needsTime: true },
+  regularization: { label: "সংশোধন (Regularization)", icon: "✏️", needsTime: false },
+  on_duty: { label: "On Duty", icon: "🚗", needsTime: true },
+  hourly_permission: { label: "Hourly Permission", icon: "⏳", needsTime: true },
+  shift_change: { label: "Shift পরিবর্তনের অনুরোধ", icon: "🔁", needsTime: false, needsShift: true },
+};
 
 
 
