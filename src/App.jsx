@@ -4576,6 +4576,7 @@ function BOQItemModal({ item, onSave, onClose, stdRates, existingRooms }) {
                 onChange={e => {
                   const sr = stdRates.find(s => String(s.id) === e.target.value);
                   if (!sr) return;
+                  alert("DEBUG — নির্বাচিত Item-এর raw data:\n\n" + JSON.stringify(sr, null, 2));
                   setForm(f => ({
                     ...f,
                     item_name: sr.item_name,
