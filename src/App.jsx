@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as XLSX from "xlsx";
 
@@ -4134,11 +4134,44 @@ function BOQSystem() {
 
   const loadProjects = async () => { const { data } = await supabase.from("project_settings").select("*").order("created_at", { ascending: false }); setProjects(data || []); };
   const loadSettings = async (pid) => { const { data } = await supabase.from("project_settings").select("*").eq("project_id", pid).single(); setSettings(data); };
-  const loadBOQ = async (pid) => { setLoading(true); const { data } = await supabase.from("project_boq").select("*").eq("project_id", pid).order("room_name").order("item_no").order("id"); setBoqItems(data || []); setLoading(false); };
+  const loadBOQ = async (pid) => { setLoading(true); const { data } = await supabase.from("project_boq").select("*").eq("project_id", pid).order("id"); setBoqItems(data || []); setLoading(false); };
   const loadExpenses = async (pid) => { const { data } = await supabase.from("project_expenses").select("*").eq("project_id", pid).order("expense_date"); setExpenses(data || []); };
   const loadStdRates = async () => { const { data } = await supabase.from("standard_rates").select("*").order("category"); setStdRates(data || []); };
 
-  const roomGroups = boqItems.reduce((acc, item) => { if (!acc[item.room_name]) acc[item.room_name] = []; acc[item.room_name].push(item); return acc; }, {});
+  const sortedBoqItems = [...boqItems].sort((a, b) => (a.sort_order ?? a.id ?? 0) - (b.sort_order ?? b.id ?? 0));
+  const roomGroups = sortedBoqItems.reduce((acc, item) => { if (!acc[item.room_name]) acc[item.room_name] = []; acc[item.room_name].push(item); return acc; }, {});
+
+  const moveItemInRoom = async (room, index, dir) => {
+    const roomItems = roomGroups[room];
+    const targetIndex = index + dir;
+    if (targetIndex < 0 || targetIndex >= roomItems.length) return;
+    const a = roomItems[index], b = roomItems[targetIndex];
+    const aOrder = a.sort_order ?? a.id, bOrder = b.sort_order ?? b.id;
+    await Promise.all([
+      supabase.from("project_boq").update({ sort_order: bOrder }).eq("id", a.id),
+      supabase.from("project_boq").update({ sort_order: aOrder }).eq("id", b.id),
+    ]);
+    await loadBOQ(selProj);
+  };
+
+  const moveRoom = async (room, dir) => {
+    const roomNames = Object.keys(roomGroups);
+    const idx = roomNames.indexOf(room);
+    const targetIdx = idx + dir;
+    if (targetIdx < 0 || targetIdx >= roomNames.length) return;
+    const newOrder = [...roomNames];
+    [newOrder[idx], newOrder[targetIdx]] = [newOrder[targetIdx], newOrder[idx]];
+    let counter = 0;
+    const updates = [];
+    newOrder.forEach(r => {
+      roomGroups[r].forEach(it => {
+        updates.push(supabase.from("project_boq").update({ sort_order: counter }).eq("id", it.id));
+        counter++;
+      });
+    });
+    await Promise.all(updates);
+    await loadBOQ(selProj);
+  };
   const grandTotal = boqItems.reduce((s, i) => s + Number(i.amount || 0), 0);
   const deliveryCharge = Number(settings?.delivery_charge || 0);
   const subTotal = grandTotal + deliveryCharge;
@@ -4177,6 +4210,7 @@ function BOQSystem() {
     const qty = Number(form.qty) || 0;
     const rate = Number(form.rate) || 0;
     const amount = qty * rate;
+    const maxSort = boqItems.reduce((m, it) => Math.max(m, it.sort_order ?? 0), 0);
     const payload = {
       project_id: selProj,
       room_name: form.room_name || "Master Bedroom",
@@ -4191,6 +4225,7 @@ function BOQSystem() {
       amount,
       is_rate_fixed: form.is_rate_fixed || false
     };
+    if (!editItem) payload.sort_order = maxSort + 1;
     let result;
     if (editItem) {
       result = await supabase.from("project_boq").update(payload).eq("id", editItem.id);
@@ -4212,12 +4247,13 @@ function BOQSystem() {
     if (!selProj) return alert("আগে একটি Project select করুন!");
     const valid = rows.filter(r => r.item_name && r.rate);
     if (valid.length === 0) return alert("কমপক্ষে একটি সারিতে Item Name ও Rate দিন!");
-    const payloads = valid.map(r => {
+    const maxSort = boqItems.reduce((m, it) => Math.max(m, it.sort_order ?? 0), 0);
+    const payloads = valid.map((r, i) => {
       const qty = Number(r.qty) || 0, rate = Number(r.rate) || 0;
       return {
         project_id: selProj, room_name: r.room_name || "Master Bedroom", code_no: r.code_no || "", item_no: Number(r.item_no) || 1,
         item_name: r.item_name || "", work_description: r.work_description || "", specification: r.specification || "",
-        unit: r.unit || "sft", qty, rate, amount: qty * rate, is_rate_fixed: false,
+        unit: r.unit || "sft", qty, rate, amount: qty * rate, is_rate_fixed: false, sort_order: maxSort + i + 1,
       };
     });
     const { error } = await supabase.from("project_boq").insert(payloads);
@@ -4306,23 +4342,36 @@ function BOQSystem() {
                   {Object.keys(roomGroups).length === 0 ? (
                     <Card style={{ textAlign: "center", padding: 50 }}><div style={{ fontSize: 36, marginBottom: 10 }}>📋</div><div style={{ color: C.gray400 }}>কোনো item নেই। "+ Item যোগ করুন" ক্লিক করুন।</div></Card>
                   ) : (
-                    Object.entries(roomGroups).map(([room, items]) => {
+                    Object.entries(roomGroups).map(([room, items], roomIdx) => {
                       const roomTotal = items.reduce((s, i) => s + Number(i.amount || 0), 0);
+                      const roomCount = Object.keys(roomGroups).length;
                       return (
                         <div key={room} style={{ marginBottom: 20 }}>
-                          <div className="room-header" style={{ background: C.primary, color: "#fff", padding: "8px 16px", fontWeight: 700, borderRadius: "4px 4px 0 0", fontSize: 14 }}>{room}</div>
+                          <div className="room-header" style={{ background: C.primary, color: "#fff", padding: "8px 16px", fontWeight: 700, borderRadius: "4px 4px 0 0", fontSize: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span>{room}</span>
+                            <span className="no-print" style={{ display: "flex", gap: 4 }}>
+                              <button onClick={() => moveRoom(room, -1)} disabled={roomIdx === 0} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", cursor: roomIdx === 0 ? "default" : "pointer", opacity: roomIdx === 0 ? 0.4 : 1, borderRadius: 4, width: 22, height: 22, fontSize: 12 }}>▲</button>
+                              <button onClick={() => moveRoom(room, 1)} disabled={roomIdx === roomCount - 1} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", cursor: roomIdx === roomCount - 1 ? "default" : "pointer", opacity: roomIdx === roomCount - 1 ? 0.4 : 1, borderRadius: 4, width: 22, height: 22, fontSize: 12 }}>▼</button>
+                            </span>
+                          </div>
                           <div style={{ overflowX: "auto", background: "#fff", border: "1px solid #eee", borderTop: "none" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse" }}>
                               <thead>
                                 <tr>
-                                  {["Code No", "Item No", "Work Description & Specification", "Unit", "Qty", "Rate (৳)", "Amount (৳)", ""].map((h, i) => (
-                                    <th key={i} style={{ ...thS, textAlign: i === 2 ? "left" : "center", minWidth: i === 2 ? 200 : 60 }}>{h}</th>
+                                  {["", "Code No", "Item No", "Work Description & Specification", "Unit", "Qty", "Rate (৳)", "Amount (৳)", ""].map((h, i) => (
+                                    <th key={i} className={(i === 0 || i === 8) ? "no-print" : undefined} style={{ ...thS, textAlign: i === 3 ? "left" : "center", minWidth: i === 3 ? 200 : 60 }}>{h}</th>
                                   ))}
                                 </tr>
                               </thead>
                               <tbody>
                                 {items.map((item, idx) => (
                                   <tr key={item.id} style={{ background: idx % 2 === 0 ? "#fff" : C.gray50 }}>
+                                    <td style={{ ...tdS, width: 46 }} className="no-print">
+                                      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                                        <button onClick={() => moveItemInRoom(room, idx, -1)} disabled={idx === 0} style={{ background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", color: idx === 0 ? C.gray200 : C.gray600, fontSize: 11, lineHeight: 1, padding: 2 }}>▲</button>
+                                        <button onClick={() => moveItemInRoom(room, idx, 1)} disabled={idx === items.length - 1} style={{ background: "none", border: "none", cursor: idx === items.length - 1 ? "default" : "pointer", color: idx === items.length - 1 ? C.gray200 : C.gray600, fontSize: 11, lineHeight: 1, padding: 2 }}>▼</button>
+                                      </div>
+                                    </td>
                                     <td style={tdS}>{item.code_no}</td>
                                     <td style={tdS}>{item.item_no}</td>
                                     <td style={{ ...tdS, textAlign: "left" }}>
@@ -4343,9 +4392,9 @@ function BOQSystem() {
                               </tbody>
                               <tfoot>
                                 <tr style={{ background: C.primaryBg, fontWeight: 700 }}>
-                                  <td colSpan={6} style={{ ...tdS, textAlign: "right", fontWeight: 700 }}>Sub Total ({room}):</td>
+                                  <td colSpan={7} style={{ ...tdS, textAlign: "right", fontWeight: 700 }}>Sub Total ({room}):</td>
                                   <td style={{ ...tdS, fontWeight: 700, color: C.primaryDark }}>৳ {fmtBOQ(roomTotal)}</td>
-                                  <td />
+                                  <td className="no-print" />
                                 </tr>
                               </tfoot>
                             </table>
@@ -5044,7 +5093,7 @@ function CPExpenses({ projectId }) {
   const load = async () => { const { data } = await supabase.from("site_expenses").select("*").eq("project_id", projectId).order("expense_date", { ascending: false }); setItems(data || []); };
   const [rows, setRows] = useState([{ expense_date: new Date().toISOString().split("T")[0], category: "General Labour", item_name: "", description: "", unit: "পিস", quantity: 1, unit_price: "", payment_method: "নগদ", payment_status: "পরিশোধিত", supplier: "", received_by: "", note: "" }]);
 
-  const addRow = () => setRows(r => [...r, { expense_date: new Date().toISOString().split("T")[0], category: "General Labour", item_name: "", description: "", unit: "পিস", quantity: 1, unit_price: "", payment_method: "নগদ", payment_status: "পরিশোধিত", supplier: "", received_by: "", note: "" }]);
+  const addRow = () => setRows(r => [...r, { expense_date: r[r.length - 1]?.expense_date || new Date().toISOString().split("T")[0], category: "General Labour", item_name: "", description: "", unit: "পিস", quantity: 1, unit_price: "", payment_method: "নগদ", payment_status: "পরিশোধিত", supplier: "", received_by: "", note: "" }]);
   const removeRow = (idx) => setRows(r => r.filter((_, i) => i !== idx));
   const updateRow = (idx, field, val) => setRows(r => r.map((row, i) => i === idx ? { ...row, [field]: val, amount: field === "quantity" || field === "unit_price" ? ((field === "quantity" ? +val : +row.quantity || 1) * (field === "unit_price" ? +val : +row.unit_price || 0)) : row.amount } : row));
 
@@ -5103,21 +5152,38 @@ function CPExpenses({ projectId }) {
               <th className="no-print" style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>Action</th>
             </tr></thead>
             <tbody>
-              {items.map(item => (
-                <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{item.expense_date}</td>
-                  <td style={{ padding: "8px 10px" }}><Badge label={item.category} color="primary" /></td>
-                  <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{item.item_name}</td>
-                  <td style={{ padding: "8px 10px", fontSize: 11, color: C.gray600, maxWidth: 150 }}>{item.description || "—"}</td>
-                  <td style={{ padding: "8px 10px" }}>{item.quantity} {item.unit}</td>
-                  <td style={{ padding: "8px 10px" }}>{fmt(item.unit_price)}</td>
-                  <td style={{ padding: "8px 10px", fontWeight: 700, color: C.red }}>{fmt(item.amount)}</td>
-                  <td style={{ padding: "8px 10px", fontSize: 11 }}>{item.supplier || "—"}</td>
-                  <td className="no-print" style={{ padding: "8px 10px", fontSize: 11 }}>{item.payment_method}</td>
-                  <td className="no-print" style={{ padding: "8px 10px" }}><Badge label={item.payment_status} color={item.payment_status === "পরিশোধিত" ? "green" : "yellow"} /></td>
-                  <td className="no-print" style={{ padding: "8px 10px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
-                </tr>
-              ))}
+              {(() => {
+                const dateGroups = items.reduce((acc, i) => { const d = i.expense_date || "—"; if (!acc[d]) acc[d] = []; acc[d].push(i); return acc; }, {});
+                return Object.entries(dateGroups).map(([date, dateItems]) => {
+                  const dateTotal = dateItems.reduce((s, i) => s + (i.amount || 0), 0);
+                  return (
+                    <Fragment key={date}>
+                      {dateItems.map(item => (
+                        <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                          <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{item.expense_date}</td>
+                          <td style={{ padding: "8px 10px" }}><Badge label={item.category} color="primary" /></td>
+                          <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{item.item_name}</td>
+                          <td style={{ padding: "8px 10px", fontSize: 11, color: C.gray600, maxWidth: 150 }}>{item.description || "—"}</td>
+                          <td style={{ padding: "8px 10px" }}>{item.quantity} {item.unit}</td>
+                          <td style={{ padding: "8px 10px" }}>{fmt(item.unit_price)}</td>
+                          <td style={{ padding: "8px 10px", fontWeight: 700, color: C.red }}>{fmt(item.amount)}</td>
+                          <td style={{ padding: "8px 10px", fontSize: 11 }}>{item.supplier || "—"}</td>
+                          <td className="no-print" style={{ padding: "8px 10px", fontSize: 11 }}>{item.payment_method}</td>
+                          <td className="no-print" style={{ padding: "8px 10px" }}><Badge label={item.payment_status} color={item.payment_status === "পরিশোধিত" ? "green" : "yellow"} /></td>
+                          <td className="no-print" style={{ padding: "8px 10px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
+                        </tr>
+                      ))}
+                      {dateItems.length > 1 && (
+                        <tr style={{ background: C.gray50, fontWeight: 700 }}>
+                          <td colSpan={6} style={{ padding: "8px 10px", textAlign: "right", color: C.primaryDark, fontSize: 12 }}>{date} — এই দিনের মোট:</td>
+                          <td style={{ padding: "8px 10px", color: C.red, fontSize: 13 }}>{fmt(dateTotal)}</td>
+                          <td className="no-print" colSpan={3}></td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                });
+              })()}
               {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: C.red, fontSize: 15 }}>{fmt(totalExpense)}</td><td></td><td className="no-print" colSpan={3}></td></tr>}
             </tbody>
           </table>
@@ -5684,7 +5750,7 @@ function IPExpenses({ projectId }) {
     else { await supabase.from("interior_expenses").insert([payload]); }
     await load(); setShowModal(false); setEditItem(null);
   };
-  const addRow = () => setRows(r => [...r, { ...emptyForm }]);
+  const addRow = () => setRows(r => [...r, { ...emptyForm, expense_date: r[r.length - 1]?.expense_date || emptyForm.expense_date }]);
   const removeRow = (idx) => setRows(r => r.filter((_, i) => i !== idx));
   const updateRow = (idx, field, val) => setRows(r => r.map((row, i) => i === idx ? { ...row, [field]: val } : row));
   const saveMultiRows = async () => {
@@ -5734,20 +5800,37 @@ function IPExpenses({ projectId }) {
               <th className="no-print" style={{ padding: "9px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, borderBottom: "2px solid " + C.primary, whiteSpace: "nowrap" }}>Action</th>
             </tr></thead>
             <tbody>
-              {items.map(item => (
-                <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{item.expense_date}</td>
-                  <td style={{ padding: "8px 10px" }}><Badge label={item.category} color="primary" /></td>
-                  <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{item.item_name}</td>
-                  <td style={{ padding: "8px 10px", fontSize: 11, color: C.gray600 }}>{item.description || "—"}</td>
-                  <td style={{ padding: "8px 10px" }}>{item.quantity} {item.unit}</td>
-                  <td style={{ padding: "8px 10px" }}>{fmt(item.unit_price)}</td>
-                  <td style={{ padding: "8px 10px", fontWeight: 700, color: C.red }}>{fmt(item.amount)}</td>
-                  <td style={{ padding: "8px 10px", fontSize: 11 }}>{item.supplier || "—"}</td>
-                  <td className="no-print" style={{ padding: "8px 10px" }}><Badge label={item.payment_status} color={item.payment_status === "পরিশোধিত" ? "green" : "yellow"} /></td>
-                  <td className="no-print" style={{ padding: "8px 10px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
-                </tr>
-              ))}
+              {(() => {
+                const dateGroups = items.reduce((acc, i) => { const d = i.expense_date || "—"; if (!acc[d]) acc[d] = []; acc[d].push(i); return acc; }, {});
+                return Object.entries(dateGroups).map(([date, dateItems]) => {
+                  const dateTotal = dateItems.reduce((s, i) => s + (i.amount || 0), 0);
+                  return (
+                    <Fragment key={date}>
+                      {dateItems.map(item => (
+                        <tr key={item.id} style={{ borderBottom: "1px solid " + C.gray100 }} onMouseEnter={e => e.currentTarget.style.background = C.primaryBg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                          <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{item.expense_date}</td>
+                          <td style={{ padding: "8px 10px" }}><Badge label={item.category} color="primary" /></td>
+                          <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{item.item_name}</td>
+                          <td style={{ padding: "8px 10px", fontSize: 11, color: C.gray600 }}>{item.description || "—"}</td>
+                          <td style={{ padding: "8px 10px" }}>{item.quantity} {item.unit}</td>
+                          <td style={{ padding: "8px 10px" }}>{fmt(item.unit_price)}</td>
+                          <td style={{ padding: "8px 10px", fontWeight: 700, color: C.red }}>{fmt(item.amount)}</td>
+                          <td style={{ padding: "8px 10px", fontSize: 11 }}>{item.supplier || "—"}</td>
+                          <td className="no-print" style={{ padding: "8px 10px" }}><Badge label={item.payment_status} color={item.payment_status === "পরিশোধিত" ? "green" : "yellow"} /></td>
+                          <td className="no-print" style={{ padding: "8px 10px" }}><div style={{ display: "flex", gap: 4 }}><button onClick={() => { setEditItem(item); setForm({ ...item }); setShowModal(true); }} style={btnEdit}>✏️</button><button onClick={() => del(item.id)} style={btnDanger}>🗑️</button></div></td>
+                        </tr>
+                      ))}
+                      {dateItems.length > 1 && (
+                        <tr style={{ background: C.gray50, fontWeight: 700 }}>
+                          <td colSpan={6} style={{ padding: "8px 10px", textAlign: "right", color: C.primaryDark, fontSize: 12 }}>{date} — এই দিনের মোট:</td>
+                          <td style={{ padding: "8px 10px", color: C.red, fontSize: 13 }}>{fmt(dateTotal)}</td>
+                          <td className="no-print" colSpan={2}></td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                });
+              })()}
               {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: C.red, fontSize: 15 }}>{fmt(totalExpense)}</td><td></td><td className="no-print" colSpan={2}></td></tr>}
             </tbody>
           </table>
