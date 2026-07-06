@@ -141,8 +141,18 @@ const printSection = async (title, contentId, customDate) => {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; }
     html, body { height: 100%; margin: 0; padding: 0; }
-    .page { width: 210mm; min-height: 297mm; padding: 12mm 14mm 26mm 14mm; box-sizing: border-box; position: relative; }
-    /* HEADER - exact Noksha Pad layout */
+    .page { width: 210mm; min-height: 297mm; padding: 42mm 14mm 26mm 14mm; box-sizing: border-box; position: relative; }
+    /* HEADER - fixed at top of every printed page, exact Noksha Pad layout */
+    .pad-header-fixed { }
+    @media print {
+      .pad-header-fixed {
+        position: fixed;
+        top: 6mm;
+        left: 14mm;
+        right: 14mm;
+        background: white;
+      }
+    }
     .pad-header {
       display: flex;
       justify-content: space-between;
@@ -178,8 +188,7 @@ const printSection = async (title, contentId, customDate) => {
       margin-bottom: 6px;
     }
     .doc-date {
-      display: flex;
-      justify-content: space-between;
+      text-align: right;
       font-size: 8.5pt;
       color: #555;
       margin-bottom: 8px;
@@ -224,19 +233,19 @@ const printSection = async (title, contentId, customDate) => {
     }
   </style></head><body>
   <div class="page">
-    <div class="pad-header">
-      <div class="pad-left">
-        Address: Arju Super Market (3rd Floor)<br/>
-        Niltuli Mujib Sarak, Faridpur.<br/>
-        Cell: +88 01619-677070 &nbsp; E-mail: noksha.ltd@gmail.com
+    <div class="pad-header-fixed">
+      <div class="pad-header">
+        <div class="pad-left">
+          Address: Arju Super Market (3rd Floor)<br/>
+          Niltuli Mujib Sarak, Faridpur.<br/>
+          Cell: +88 01619-677070 &nbsp; E-mail: noksha.ltd@gmail.com
+        </div>
+        <div class="pad-right">
+          <img src="${logoB64}" style="height:55px;width:auto;object-fit:contain" alt="NOKSHA" />
+        </div>
       </div>
-      <div class="pad-right">
-        <img src="${logoB64}" style="height:55px;width:auto;object-fit:contain" alt="NOKSHA" />
-      </div>
-    </div>
-    <div class="doc-title">${title}</div>
-    <div class="doc-date">
-      ${customDate ? `<span></span><span>Date: ${new Date(customDate).toLocaleDateString("en-GB")}</span>` : `<span>তারিখ: ${new Date().toLocaleDateString("bn-BD")}</span><span>Date: ${new Date().toLocaleDateString("en-GB")}</span>`}
+      <div class="doc-title">${title}</div>
+      <div class="doc-date">Date: ${new Date(customDate || new Date()).toLocaleDateString("en-GB")}</div>
     </div>
     <div class="pad-content">
       ${content.innerHTML}
@@ -5088,6 +5097,8 @@ function CPExpenses({ projectId }) {
   const [editItem, setEditItem] = useState(null);
   const emptyForm = { expense_date: new Date().toISOString().split("T")[0], category: "General Labour", item_name: "", description: "", unit: "পিস", quantity: 1, unit_price: "", amount: 0, supplier: "", payment_method: "নগদ", payment_status: "পরিশোধিত", received_by: "", note: "", image_url: "" };
   const [form, setForm] = useState(emptyForm);
+  const uploadRef = useRef();
+  const docUploadRef = useRef();
   const categories = ["General Labour", "Construction Labour", "Electrical Labour", "Plumbing Labour", "Supervision from Head Office", "Painter", "Interior Materials", "Interior Labour", "নির্মাণ সামগ্রী", "শ্রমিক মজুরি", "ইলেকট্রিক সামগ্রী", "প্লাম্বিং সামগ্রী", "যন্ত্রপাতি ভাড়া", "পরিবহন", "টাইলস/পাথর", "রঙ সামগ্রী", "দরজা-জানালা", "হার্ডওয়্যার", "অন্যান্য"];
   useEffect(() => { load(); }, [projectId]);
   const load = async () => { const { data } = await supabase.from("site_expenses").select("*").eq("project_id", projectId).order("expense_date", { ascending: false }); setItems(data || []); };
@@ -5114,6 +5125,93 @@ function CPExpenses({ projectId }) {
     await load(); setShowModal(false); setEditItem(null);
   };
   const del = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("site_expenses").delete().eq("id", id); await load(); };
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const rows = await parseExcelFile(file);
+    let count = 0;
+    for (const row of rows) {
+      const item_name = row["আইটেম"] || row["item_name"]; if (!item_name) continue;
+      const qty = +row["পরিমাণ"] || +row["quantity"] || 1;
+      const unit_price = +row["একক_মূল্য"] || +row["unit_price"] || 0;
+      await supabase.from("site_expenses").insert([{
+        project_id: projectId,
+        expense_date: row["তারিখ"] || row["expense_date"] || new Date().toISOString().split("T")[0],
+        category: row["ক্যাটাগরি"] || row["category"] || "General Labour",
+        item_name, description: row["বিবরণ"] || row["description"] || "",
+        unit: row["একক"] || row["unit"] || "পিস", quantity: qty, unit_price, amount: qty * unit_price,
+        supplier: row["সাপ্লায়ার"] || row["supplier"] || "",
+        payment_method: row["পেমেন্ট"] || row["payment_method"] || "নগদ",
+        payment_status: row["স্ট্যাটাস"] || row["payment_status"] || "পরিশোধিত",
+      }]);
+      count++;
+    }
+    alert("✅ " + count + "টি খরচ Excel থেকে যোগ হয়েছে!"); e.target.value = ""; await load();
+  };
+
+  const handleDocDownload = async () => {
+    const { Document, Packer, Table, TableRow, TableCell, Paragraph, TextRun, WidthType, HeadingLevel } = await import("docx");
+    const headerCells = ["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "একক", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার"].map(h =>
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF" })] })], shading: { fill: "3F5F45" } })
+    );
+    const dataRows = items.map(i => new TableRow({
+      children: [i.expense_date, i.category, i.item_name, i.description || "", i.unit, String(i.quantity), fmt(i.unit_price), fmt(i.amount), i.supplier || ""].map(v =>
+        new TableCell({ children: [new Paragraph(String(v || ""))] })
+      ),
+    }));
+    const totalRow = new TableRow({
+      children: [
+        new TableCell({ columnSpan: 7, children: [new Paragraph({ alignment: "right", children: [new TextRun({ text: "সর্বমোট:", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(items.reduce((s, i) => s + (i.amount || 0), 0)), bold: true })] })] }),
+        new TableCell({ children: [new Paragraph("")] }),
+      ],
+    });
+    const doc = new Document({
+      sections: [{
+        children: [
+          new Paragraph({ text: "Project Expenses", heading: HeadingLevel.HEADING_1 }),
+          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: headerCells }), ...dataRows, totalRow] }),
+        ],
+      }],
+    });
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "NIC_Project_Expenses_" + new Date().toISOString().split("T")[0] + ".docx";
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const handleDocUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const mammoth = await import("mammoth");
+      const arrayBuffer = await file.arrayBuffer();
+      const { value: html } = await mammoth.convertToHtml({ arrayBuffer });
+      const parser = new DOMParser();
+      const docHtml = parser.parseFromString(html, "text/html");
+      const tableRows = Array.from(docHtml.querySelectorAll("table tr")).slice(1);
+      let count = 0;
+      for (const tr of tableRows) {
+        const cells = Array.from(tr.querySelectorAll("td")).map(td => td.textContent.trim());
+        if (cells.length < 8 || !cells[2]) continue;
+        if (cells[0].toLowerCase().includes("সর্বমোট")) continue;
+        const qty = +cells[5] || 1;
+        const unit_price = +String(cells[6]).replace(/[^0-9.]/g, "") || 0;
+        await supabase.from("site_expenses").insert([{
+          project_id: projectId, expense_date: cells[0] || new Date().toISOString().split("T")[0],
+          category: cells[1] || "General Labour", item_name: cells[2], description: cells[3] || "",
+          unit: cells[4] || "পিস", quantity: qty, unit_price, amount: qty * unit_price, supplier: cells[8] || "",
+          payment_method: "নগদ", payment_status: "পরিশোধিত",
+        }]);
+        count++;
+      }
+      alert("✅ " + count + "টি খরচ Word ফাইল থেকে যোগ হয়েছে!"); await load();
+    } catch (err) {
+      alert("❌ DOC পড়তে সমস্যা হয়েছে: " + err.message + "\n(শুধু আমাদের নিজস্ব Export করা .docx ফাইল আবার Upload করলে সবচেয়ে ভালো কাজ করবে)");
+    }
+    e.target.value = "";
+  };
+
   const totalExpense = items.reduce((s, i) => s + (i.amount || 0), 0);
   const catGroups = items.reduce((acc, i) => { acc[i.category] = (acc[i.category] || 0) + (i.amount || 0); return acc; }, {});
   return (
@@ -5124,11 +5222,14 @@ function CPExpenses({ projectId }) {
         <StatCard icon="⏳" label="বকেয়া" value={fmt(items.filter(i => i.payment_status !== "পরিশোধিত").reduce((s, i) => s + (i.amount || 0), 0))} color={C.yellowLight} />
         <StatCard icon="📋" label="মোট এন্ট্রি" value={fmtNum(items.length)} color={C.primaryBg} />
       </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
         <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একটি খরচ</button>
         <button onClick={() => { setEditItem(null); setShowMultiModal(true); }} style={{ background: "#2A5C8F", color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একসাথে অনেক খরচ</button>
+        <button onClick={handleDocDownload} style={{ background: "#2A5C8F", color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>📄 DOC Download</button>
+        <button onClick={() => docUploadRef.current?.click()} style={{ background: "#2A5C8F", color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>📥 DOC Upload</button>
+        <input type="file" ref={docUploadRef} onChange={handleDocUpload} accept=".docx" style={{ display: "none" }} />
       </div>
-      <SectionHeader title="💸 Project Expenses" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => { printSection("Project Expenses", "expenses-print"); }} onExport={() => exportToExcel(items.map(i => ({ তারিখ: i.expense_date, ক্যাটাগরি: i.category, আইটেম: i.item_name, বিবরণ: i.description, একক: i.unit, পরিমাণ: i.quantity, একক_মূল্য: i.unit_price, মোট: i.amount, সাপ্লায়ার: i.supplier, পেমেন্ট: i.payment_method, স্ট্যাটাস: i.payment_status })), "Expenses", "Site_Expenses")} />
+      <SectionHeader title="💸 Project Expenses" onAction={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} onPrint={() => { printSection("Project Expenses", "expenses-print"); }} onUpload={handleUpload} uploadRef={uploadRef} onExport={() => exportToExcel(items.map(i => ({ তারিখ: i.expense_date, ক্যাটাগরি: i.category, আইটেম: i.item_name, বিবরণ: i.description, একক: i.unit, পরিমাণ: i.quantity, একক_মূল্য: i.unit_price, মোট: i.amount, সাপ্লায়ার: i.supplier, পেমেন্ট: i.payment_method, স্ট্যাটাস: i.payment_status })), "Expenses", "Site_Expenses")} />
       {Object.keys(catGroups).length > 0 && (
         <Card style={{ marginBottom: 14 }}>
           <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 13, marginBottom: 8 }}>ক্যাটাগরি অনুযায়ী:</div>
@@ -5176,7 +5277,7 @@ function CPExpenses({ projectId }) {
                       {dateItems.length > 1 && (
                         <tr style={{ background: C.gray50, fontWeight: 700 }}>
                           <td colSpan={6} style={{ padding: "8px 10px", textAlign: "right", color: C.primaryDark, fontSize: 12 }}>{date} — এই দিনের মোট:</td>
-                          <td style={{ padding: "8px 10px", color: C.red, fontSize: 13 }}>{fmt(dateTotal)}</td>
+                          <td style={{ padding: "8px 10px", color: "#111", fontWeight: 800, fontSize: 13 }}>{fmt(dateTotal)}</td>
                           <td className="no-print" colSpan={3}></td>
                         </tr>
                       )}
@@ -5184,7 +5285,7 @@ function CPExpenses({ projectId }) {
                   );
                 });
               })()}
-              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: C.red, fontSize: 15 }}>{fmt(totalExpense)}</td><td></td><td className="no-print" colSpan={3}></td></tr>}
+              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: "#111", fontWeight: 800, fontSize: 15 }}>{fmt(totalExpense)}</td><td></td><td className="no-print" colSpan={3}></td></tr>}
             </tbody>
           </table>
           {items.length === 0 && <div style={{ textAlign: "center", padding: 30, color: C.gray400 }}>কোনো খরচ নেই!</div>}
@@ -5234,7 +5335,7 @@ function CPExpenses({ projectId }) {
               <tfoot>
                 <tr style={{ background: C.primaryBg }}>
                   <td colSpan={7} style={{ padding: "8px", textAlign: "right", fontWeight: 700, color: C.primaryDark }}>সর্বমোট:</td>
-                  <td style={{ padding: "8px", fontWeight: 800, color: C.red, fontSize: 14 }}>{fmt(rows.reduce((s, r) => s + ((+r.quantity || 1) * (+r.unit_price || 0)), 0))}</td>
+                  <td style={{ padding: "8px", fontWeight: 800, color: "#111", fontSize: 14 }}>{fmt(rows.reduce((s, r) => s + ((+r.quantity || 1) * (+r.unit_price || 0)), 0))}</td>
                   <td colSpan={2}></td>
                 </tr>
               </tfoot>
@@ -5739,6 +5840,8 @@ function IPExpenses({ projectId }) {
   const emptyForm = { expense_date: new Date().toISOString().split("T")[0], category: "Interior Materials", item_name: "", description: "", unit: "পিস", quantity: 1, unit_price: "", amount: 0, supplier: "", payment_method: "নগদ", payment_status: "পরিশোধিত", received_by: "", note: "", image_url: "" };
   const [form, setForm] = useState(emptyForm);
   const [rows, setRows] = useState([{ ...emptyForm }]);
+  const uploadRef = useRef();
+  const docUploadRef = useRef();
   const categories = ["Interior Materials", "Interior Labour", "Furniture", "False Ceiling", "Wall Panelling", "Flooring", "Paint", "Electrical", "Plumbing", "Kitchen Cabinet", "Wardrobe", "Glass Work", "Curtain/Blind", "Lighting", "Hardware", "Transport", "অন্যান্য"];
   useEffect(() => { load(); }, [projectId]);
   const load = async () => { const { data } = await supabase.from("interior_expenses").select("*").eq("project_id", projectId).order("expense_date", { ascending: false }); setItems(data || []); };
@@ -5762,6 +5865,93 @@ function IPExpenses({ projectId }) {
     setRows([{ ...emptyForm }]);
   };
   const del = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("interior_expenses").delete().eq("id", id); await load(); };
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const excelRows = await parseExcelFile(file);
+    let count = 0;
+    for (const row of excelRows) {
+      const item_name = row["আইটেম"] || row["item_name"]; if (!item_name) continue;
+      const qty = +row["পরিমাণ"] || +row["quantity"] || 1;
+      const unit_price = +row["একক_মূল্য"] || +row["unit_price"] || 0;
+      await supabase.from("interior_expenses").insert([{
+        project_id: projectId,
+        expense_date: row["তারিখ"] || row["expense_date"] || new Date().toISOString().split("T")[0],
+        category: row["ক্যাটাগরি"] || row["category"] || "Interior Materials",
+        item_name, description: row["বিবরণ"] || row["description"] || "",
+        unit: row["একক"] || row["unit"] || "পিস", quantity: qty, unit_price, amount: qty * unit_price,
+        supplier: row["সাপ্লায়ার"] || row["supplier"] || "",
+        payment_method: row["পেমেন্ট"] || row["payment_method"] || "নগদ",
+        payment_status: row["স্ট্যাটাস"] || row["payment_status"] || "পরিশোধিত",
+      }]);
+      count++;
+    }
+    alert("✅ " + count + "টি খরচ Excel থেকে যোগ হয়েছে!"); e.target.value = ""; await load();
+  };
+
+  const handleDocDownload = async () => {
+    const { Document, Packer, Table, TableRow, TableCell, Paragraph, TextRun, WidthType, HeadingLevel } = await import("docx");
+    const headerCells = ["তারিখ", "ক্যাটাগরি", "আইটেম", "বিবরণ", "একক", "পরিমাণ", "একক মূল্য", "মোট", "সাপ্লায়ার"].map(h =>
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF" })] })], shading: { fill: "3F5F45" } })
+    );
+    const dataRows = items.map(i => new TableRow({
+      children: [i.expense_date, i.category, i.item_name, i.description || "", i.unit, String(i.quantity), fmt(i.unit_price), fmt(i.amount), i.supplier || ""].map(v =>
+        new TableCell({ children: [new Paragraph(String(v || ""))] })
+      ),
+    }));
+    const totalRow = new TableRow({
+      children: [
+        new TableCell({ columnSpan: 7, children: [new Paragraph({ alignment: "right", children: [new TextRun({ text: "সর্বমোট:", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmt(items.reduce((s, i) => s + (i.amount || 0), 0)), bold: true })] })] }),
+        new TableCell({ children: [new Paragraph("")] }),
+      ],
+    });
+    const doc = new Document({
+      sections: [{
+        children: [
+          new Paragraph({ text: "Interior Project Expenses", heading: HeadingLevel.HEADING_1 }),
+          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: headerCells }), ...dataRows, totalRow] }),
+        ],
+      }],
+    });
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "NIC_Interior_Expenses_" + new Date().toISOString().split("T")[0] + ".docx";
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const handleDocUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const mammoth = await import("mammoth");
+      const arrayBuffer = await file.arrayBuffer();
+      const { value: html } = await mammoth.convertToHtml({ arrayBuffer });
+      const parser = new DOMParser();
+      const docHtml = parser.parseFromString(html, "text/html");
+      const tableRows = Array.from(docHtml.querySelectorAll("table tr")).slice(1);
+      let count = 0;
+      for (const tr of tableRows) {
+        const cells = Array.from(tr.querySelectorAll("td")).map(td => td.textContent.trim());
+        if (cells.length < 8 || !cells[2]) continue;
+        if (cells[0].toLowerCase().includes("সর্বমোট")) continue;
+        const qty = +cells[5] || 1;
+        const unit_price = +String(cells[6]).replace(/[^0-9.]/g, "") || 0;
+        await supabase.from("interior_expenses").insert([{
+          project_id: projectId, expense_date: cells[0] || new Date().toISOString().split("T")[0],
+          category: cells[1] || "Interior Materials", item_name: cells[2], description: cells[3] || "",
+          unit: cells[4] || "পিস", quantity: qty, unit_price, amount: qty * unit_price, supplier: cells[8] || "",
+          payment_method: "নগদ", payment_status: "পরিশোধিত",
+        }]);
+        count++;
+      }
+      alert("✅ " + count + "টি খরচ Word ফাইল থেকে যোগ হয়েছে!"); await load();
+    } catch (err) {
+      alert("❌ DOC পড়তে সমস্যা হয়েছে: " + err.message + "\n(শুধু আমাদের নিজস্ব Export করা .docx ফাইল আবার Upload করলে সবচেয়ে ভালো কাজ করবে)");
+    }
+    e.target.value = "";
+  };
+
   const totalExpense = items.reduce((s, i) => s + (i.amount || 0), 0);
   const catGroups = items.reduce((acc, i) => { acc[i.category] = (acc[i.category] || 0) + (i.amount || 0); return acc; }, {});
   return (
@@ -5772,10 +5962,15 @@ function IPExpenses({ projectId }) {
         <StatCard icon="⏳" label="বকেয়া" value={fmt(items.filter(i => i.payment_status !== "পরিশোধিত").reduce((s, i) => s + (i.amount || 0), 0))} color={C.yellowLight} />
         <StatCard icon="📋" label="মোট এন্ট্রি" value={fmtNum(items.length)} color={C.primaryBg} />
       </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একটি খরচ</button>
         <button onClick={() => { setShowMultiModal(true); }} style={{ background: "#2A5C8F", color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ একসাথে অনেক খরচ</button>
-        <button onClick={() => exportToExcel(items.map(i => ({ তারিখ: i.expense_date, ক্যাটাগরি: i.category, আইটেম: i.item_name, বিবরণ: i.description, একক: i.unit, পরিমাণ: i.quantity, একক_মূল্য: i.unit_price, মোট: i.amount, সাপ্লায়ার: i.supplier, স্ট্যাটাস: i.payment_status })), "IPExpenses", "Interior_Expenses")} style={{ background: C.green, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 12 }}>📊 Excel</button>
+        <button onClick={() => exportToExcel(items.map(i => ({ তারিখ: i.expense_date, ক্যাটাগরি: i.category, আইটেম: i.item_name, বিবরণ: i.description, একক: i.unit, পরিমাণ: i.quantity, একক_মূল্য: i.unit_price, মোট: i.amount, সাপ্লায়ার: i.supplier, স্ট্যাটাস: i.payment_status })), "IPExpenses", "Interior_Expenses")} style={{ background: C.green, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 12 }}>📊 Excel Download</button>
+        <button onClick={() => uploadRef.current?.click()} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 12 }}>📤 Excel Upload</button>
+        <input type="file" ref={uploadRef} onChange={handleUpload} accept=".xlsx,.xls" style={{ display: "none" }} />
+        <button onClick={handleDocDownload} style={{ background: "#2A5C8F", color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 12 }}>📄 DOC Download</button>
+        <button onClick={() => docUploadRef.current?.click()} style={{ background: "#2A5C8F", color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 12 }}>📥 DOC Upload</button>
+        <input type="file" ref={docUploadRef} onChange={handleDocUpload} accept=".docx" style={{ display: "none" }} />
         <button onClick={() => { printSection("Interior Project Expenses", "ip-expenses-print"); }} style={{ background: C.blue, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 12 }}>🖨️ Print</button>
       </div>
       {Object.keys(catGroups).length > 0 && (
@@ -5823,7 +6018,7 @@ function IPExpenses({ projectId }) {
                       {dateItems.length > 1 && (
                         <tr style={{ background: C.gray50, fontWeight: 700 }}>
                           <td colSpan={6} style={{ padding: "8px 10px", textAlign: "right", color: C.primaryDark, fontSize: 12 }}>{date} — এই দিনের মোট:</td>
-                          <td style={{ padding: "8px 10px", color: C.red, fontSize: 13 }}>{fmt(dateTotal)}</td>
+                          <td style={{ padding: "8px 10px", color: "#111", fontWeight: 800, fontSize: 13 }}>{fmt(dateTotal)}</td>
                           <td className="no-print" colSpan={2}></td>
                         </tr>
                       )}
@@ -5831,7 +6026,7 @@ function IPExpenses({ projectId }) {
                   );
                 });
               })()}
-              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: C.red, fontSize: 15 }}>{fmt(totalExpense)}</td><td></td><td className="no-print" colSpan={2}></td></tr>}
+              {items.length > 0 && <tr style={{ background: C.primaryBg, fontWeight: 700 }}><td colSpan={6} style={{ padding: "10px", textAlign: "right", color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "10px", color: "#111", fontWeight: 800, fontSize: 15 }}>{fmt(totalExpense)}</td><td></td><td className="no-print" colSpan={2}></td></tr>}
             </tbody>
           </table>
           {items.length === 0 && <div style={{ textAlign: "center", padding: 30, color: C.gray400 }}>কোনো খরচ নেই!</div>}
@@ -5858,7 +6053,7 @@ function IPExpenses({ projectId }) {
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr style={{ background: C.primaryBg }}><td colSpan={7} style={{ padding: "8px", textAlign: "right", fontWeight: 700, color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "8px", fontWeight: 800, color: C.red, fontSize: 14 }}>{fmt(rows.reduce((s, r) => s + ((+r.quantity || 1) * (+r.unit_price || 0)), 0))}</td><td colSpan={2}></td></tr></tfoot>
+              <tfoot><tr style={{ background: C.primaryBg }}><td colSpan={7} style={{ padding: "8px", textAlign: "right", fontWeight: 700, color: C.primaryDark }}>সর্বমোট:</td><td style={{ padding: "8px", fontWeight: 800, color: "#111", fontSize: 14 }}>{fmt(rows.reduce((s, r) => s + ((+r.quantity || 1) * (+r.unit_price || 0)), 0))}</td><td colSpan={2}></td></tr></tfoot>
             </table>
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
