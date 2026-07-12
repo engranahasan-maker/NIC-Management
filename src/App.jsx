@@ -1269,6 +1269,293 @@ function DocumentsHub({ clients }) {
 }
 
 // ============================================================
+// MARKETING & SALES (Lead Tracker, Important Leads, Daily/Weekly Reports)
+// ============================================================
+const LEAD_STAGES = ["New", "Contacted", "Site Visit", "Quotation", "Won", "Lost"];
+const LEAD_SOURCES = ["Facebook", "Referral", "Walk-in", "Field Visit", "অন্যান্য"];
+const LEAD_PROJECT_TYPES = ["Interior", "Civil", "Renovation", "অন্যান্য"];
+const stageColor = { New: "gray", Contacted: "primary", "Site Visit": "yellow", Quotation: "blue", Won: "green", Lost: "red" };
+
+function LeadTracker({ onlyImportant }) {
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [stageFilter, setStageFilter] = useState("সব");
+  const blankForm = { lead_date: new Date().toISOString().split("T")[0], client_name: "", phone: "", area: "", project_type: "Interior", budget_estimate: "", lead_source: "Facebook", stage: "New", next_action: "", next_followup_date: "", assigned_to: "", notes: "", is_important: false };
+  const [form, setForm] = useState(blankForm);
+  const uploadRef = useRef();
+
+  const load = async () => {
+    setLoading(true);
+    let q = supabase.from("sales_leads").select("*").order("lead_date", { ascending: false });
+    if (onlyImportant) q = q.eq("is_important", true);
+    const { data, error } = await q;
+    if (error) { console.error(error); setLoading(false); return; }
+    setLeads(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [onlyImportant]);
+
+  const save = async () => {
+    if (!form.client_name) return alert("ক্লায়েন্টের নাম আবশ্যক");
+    const { error } = editItem ? await supabase.from("sales_leads").update(form).eq("id", editItem.id) : await supabase.from("sales_leads").insert([form]);
+    if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
+    setShowModal(false); setForm(blankForm); setEditItem(null); load();
+  };
+
+  const del = async (id) => { if (!confirm("এই লিড মুছবেন?")) return; await supabase.from("sales_leads").delete().eq("id", id); load(); };
+  const toggleImportant = async (lead) => { await supabase.from("sales_leads").update({ is_important: !lead.is_important }).eq("id", lead.id); load(); };
+  const changeStage = async (lead, stage) => { await supabase.from("sales_leads").update({ stage }).eq("id", lead.id); load(); };
+
+  const handleExport = () => exportToExcel(leads.map(l => ({ তারিখ: l.lead_date, নাম: l.client_name, ফোন: l.phone, এলাকা: l.area, ধরন: l.project_type, বাজেট: l.budget_estimate, সোর্স: l.lead_source, স্ট্যাটাস: l.stage, দায়িত্বপ্রাপ্ত: l.assigned_to })), "Leads", "Lead_Tracker");
+  const handleUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const rows = await parseExcelFile(file);
+    let count = 0;
+    for (const row of rows) {
+      const client_name = row["নাম"] || row["client_name"]; if (!client_name) continue;
+      await supabase.from("sales_leads").insert([{
+        lead_date: row["তারিখ"] || row["lead_date"] || new Date().toISOString().split("T")[0],
+        client_name, phone: row["ফোন"] || row["phone"] || "", area: row["এলাকা"] || row["area"] || "",
+        project_type: row["ধরন"] || row["project_type"] || "Interior", budget_estimate: row["বাজেট"] || row["budget_estimate"] || "",
+        lead_source: row["সোর্স"] || row["lead_source"] || "Facebook", stage: row["স্ট্যাটাস"] || row["stage"] || "New",
+        assigned_to: row["দায়িত্বপ্রাপ্ত"] || row["assigned_to"] || "",
+      }]);
+      count++;
+    }
+    alert("✅ " + count + "টি লিড যোগ হয়েছে!"); e.target.value = ""; load();
+  };
+
+  const filtered = stageFilter === "সব" ? leads : leads.filter(l => l.stage === stageFilter);
+  const counts = { New: 0, Contacted: 0, "Site Visit": 0, Quotation: 0, Won: 0, Lost: 0 };
+  leads.forEach(l => { if (counts[l.stage] != null) counts[l.stage]++; });
+
+  return (
+    <div>
+      {!onlyImportant && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px,1fr))", gap: 10, marginBottom: 16 }}>
+          {LEAD_STAGES.map(s => <StatCard key={s} icon="📌" label={s} value={fmtNum(counts[s])} color={C.primaryBg} />)}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        <button onClick={() => { setEditItem(null); setForm(blankForm); setShowModal(true); }} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ নতুন লিড</button>
+        <button onClick={handleExport} style={btnEdit}>⬇️ Excel Download</button>
+        <button onClick={() => uploadRef.current?.click()} style={btnEdit}>⬆️ Excel Upload</button>
+        <input type="file" ref={uploadRef} onChange={handleUpload} accept=".xlsx,.xls,.csv" style={{ display: "none" }} />
+        {!onlyImportant && (
+          <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
+            <option>সব</option>
+            {LEAD_STAGES.map(s => <option key={s}>{s}</option>)}
+          </select>
+        )}
+      </div>
+
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো লিড নেই</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: C.primaryBg }}>{["⭐", "তারিখ", "নাম", "ফোন", "এলাকা", "ধরন", "বাজেট", "সোর্স", "স্ট্যাটাস", "দায়িত্বপ্রাপ্ত", "Action"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {filtered.map(l => (
+                  <tr key={l.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                    <td style={{ padding: "8px 10px" }}><button onClick={() => toggleImportant(l)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16 }}>{l.is_important ? "⭐" : "☆"}</button></td>
+                    <td style={{ padding: "8px 10px" }}>{l.lead_date}</td>
+                    <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{l.client_name}</td>
+                    <td style={{ padding: "8px 10px" }}>{l.phone}</td>
+                    <td style={{ padding: "8px 10px" }}>{l.area}</td>
+                    <td style={{ padding: "8px 10px" }}>{l.project_type}</td>
+                    <td style={{ padding: "8px 10px" }}>{l.budget_estimate}</td>
+                    <td style={{ padding: "8px 10px" }}>{l.lead_source}</td>
+                    <td style={{ padding: "8px 10px" }}>
+                      <select value={l.stage} onChange={e => changeStage(l, e.target.value)} style={{ ...inputStyle, padding: "4px 8px", fontSize: 11, width: "auto" }}>
+                        {LEAD_STAGES.map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: "8px 10px" }}>{l.assigned_to}</td>
+                    <td style={{ padding: "8px 10px" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => { setEditItem(l); setForm({ ...blankForm, ...l }); setShowModal(true); }} style={btnEdit}>✏️</button>
+                        <button onClick={() => del(l.id)} style={btnDanger}>🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {showModal && (
+        <Modal title={editItem ? "লিড সম্পাদনা" : "নতুন লিড"} onClose={() => setShowModal(false)} size={620}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="তারিখ"><input type="date" style={inputStyle} value={form.lead_date} onChange={e => setForm({ ...form, lead_date: e.target.value })} /></FormField>
+            <FormField label="ক্লায়েন্টের নাম *"><input style={inputStyle} value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} /></FormField>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="মোবাইল নম্বর"><input style={inputStyle} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></FormField>
+            <FormField label="এলাকা / ঠিকানা"><input style={inputStyle} value={form.area} onChange={e => setForm({ ...form, area: e.target.value })} /></FormField>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="প্রজেক্ট টাইপ"><select style={inputStyle} value={form.project_type} onChange={e => setForm({ ...form, project_type: e.target.value })}>{LEAD_PROJECT_TYPES.map(t => <option key={t}>{t}</option>)}</select></FormField>
+            <FormField label="আনুমানিক বাজেট"><input style={inputStyle} value={form.budget_estimate} onChange={e => setForm({ ...form, budget_estimate: e.target.value })} placeholder="৳" /></FormField>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="লিড সোর্স"><select style={inputStyle} value={form.lead_source} onChange={e => setForm({ ...form, lead_source: e.target.value })}>{LEAD_SOURCES.map(s => <option key={s}>{s}</option>)}</select></FormField>
+            <FormField label="স্ট্যাটাস"><select style={inputStyle} value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value })}>{LEAD_STAGES.map(s => <option key={s}>{s}</option>)}</select></FormField>
+          </div>
+          <FormField label="পরবর্তী করণীয়"><input style={inputStyle} value={form.next_action} onChange={e => setForm({ ...form, next_action: e.target.value })} /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="পরবর্তী ফলো-আপ তারিখ"><input type="date" style={inputStyle} value={form.next_followup_date} onChange={e => setForm({ ...form, next_followup_date: e.target.value })} /></FormField>
+            <FormField label="দায়িত্বপ্রাপ্ত ব্যক্তি"><input style={inputStyle} value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })} /></FormField>
+          </div>
+          <FormField label="মন্তব্য"><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></FormField>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <input type="checkbox" checked={form.is_important} onChange={e => setForm({ ...form, is_important: e.target.checked })} style={{ accentColor: C.primary, width: 16, height: 16 }} />
+            <label style={{ fontSize: 13, fontWeight: 600, color: C.gray800 }}>⭐ গুরুত্বপূর্ণ লিড হিসেবে চিহ্নিত করুন</label>
+          </div>
+          <button onClick={save} style={btnPrimary}>✅ সংরক্ষণ করুন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function DailyActivityReport() {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const blankForm = { report_date: new Date().toISOString().split("T")[0], team_member: "", area_visited: "", people_met: "", new_leads_count: 0, followups_count: 0, notes: "", tomorrow_plan: "" };
+  const [form, setForm] = useState(blankForm);
+
+  const load = async () => { setLoading(true); const { data } = await supabase.from("daily_activity_reports").select("*").order("report_date", { ascending: false }).limit(50); setReports(data || []); setLoading(false); };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    if (!form.team_member || !form.area_visited) return alert("টিম মেম্বার ও এলাকা আবশ্যক");
+    const { error } = await supabase.from("daily_activity_reports").insert([form]);
+    if (error) return alert("❌ ব্যর্থ: " + error.message);
+    setShowModal(false); setForm(blankForm); load();
+  };
+  const del = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("daily_activity_reports").delete().eq("id", id); load(); };
+
+  return (
+    <div>
+      <SectionHeader title="📝 ডেইলি অ্যাক্টিভিটি রিপোর্ট" action="নতুন রিপোর্ট" onAction={() => setShowModal(true)} />
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : reports.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 20, color: C.gray400, fontSize: 13 }}>কোনো রিপোর্ট নেই</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead><tr style={{ background: C.primaryBg }}>{["তারিখ", "টিম মেম্বার", "এলাকা", "সাক্ষাৎ", "নতুন লিড", "ফলো-আপ", "মন্তব্য", "Action"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {reports.map(r => (
+                <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
+                  <td style={{ padding: "8px 10px" }}>{r.report_date}</td>
+                  <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{r.team_member}</td>
+                  <td style={{ padding: "8px 10px" }}>{r.area_visited}</td>
+                  <td style={{ padding: "8px 10px", fontSize: 11, color: C.gray600 }}>{r.people_met}</td>
+                  <td style={{ padding: "8px 10px" }}>{fmtNum(r.new_leads_count)}</td>
+                  <td style={{ padding: "8px 10px" }}>{fmtNum(r.followups_count)}</td>
+                  <td style={{ padding: "8px 10px", fontSize: 11, color: C.gray600 }}>{r.notes}</td>
+                  <td style={{ padding: "8px 10px" }}><button onClick={() => del(r.id)} style={btnDanger}>🗑️</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {showModal && (
+        <Modal title="নতুন ডেইলি রিপোর্ট" onClose={() => setShowModal(false)}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="তারিখ"><input type="date" style={inputStyle} value={form.report_date} onChange={e => setForm({ ...form, report_date: e.target.value })} /></FormField>
+            <FormField label="টিম মেম্বার *"><input style={inputStyle} value={form.team_member} onChange={e => setForm({ ...form, team_member: e.target.value })} /></FormField>
+          </div>
+          <FormField label="আজকের ভিজিট করা এলাকা *"><input style={inputStyle} value={form.area_visited} onChange={e => setForm({ ...form, area_visited: e.target.value })} /></FormField>
+          <FormField label="সাক্ষাৎ করা ব্যক্তি/প্রতিষ্ঠান"><input style={inputStyle} value={form.people_met} onChange={e => setForm({ ...form, people_met: e.target.value })} /></FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="নতুন লিড সংগৃহীত"><input type="number" style={inputStyle} value={form.new_leads_count} onChange={e => setForm({ ...form, new_leads_count: e.target.value })} /></FormField>
+            <FormField label="ফলো-আপ সম্পন্ন"><input type="number" style={inputStyle} value={form.followups_count} onChange={e => setForm({ ...form, followups_count: e.target.value })} /></FormField>
+          </div>
+          <FormField label="উল্লেখযোগ্য মন্তব্য / সমস্যা"><textarea style={{ ...inputStyle, minHeight: 50 }} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></FormField>
+          <FormField label="আগামীকালের পরিকল্পনা"><textarea style={{ ...inputStyle, minHeight: 50 }} value={form.tomorrow_plan} onChange={e => setForm({ ...form, tomorrow_plan: e.target.value })} /></FormField>
+          <button onClick={save} style={btnPrimary}>✅ জমা দিন</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function WeeklySalesSummary() {
+  const [leads, setLeads] = useState([]);
+  const [range, setRange] = useState({ start: new Date(new Date().setDate(new Date().getDate() - 6)).toISOString().split("T")[0], end: new Date().toISOString().split("T")[0] });
+
+  const load = async () => { const { data } = await supabase.from("sales_leads").select("*").gte("lead_date", range.start).lte("lead_date", range.end); setLeads(data || []); };
+  useEffect(() => { load(); }, [range]);
+
+  const newLeads = leads.length;
+  const siteVisits = leads.filter(l => l.stage === "Site Visit" || l.stage === "Quotation" || l.stage === "Won").length;
+  const quotations = leads.filter(l => l.stage === "Quotation" || l.stage === "Won").length;
+  const won = leads.filter(l => l.stage === "Won").length;
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+        <input type="date" value={range.start} onChange={e => setRange({ ...range, start: e.target.value })} style={{ ...inputStyle, width: "auto" }} />
+        <span style={{ color: C.gray600 }}>→</span>
+        <input type="date" value={range.end} onChange={e => setRange({ ...range, end: e.target.value })} style={{ ...inputStyle, width: "auto" }} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 14 }}>
+        <StatCard icon="🆕" label="নতুন লিড" value={fmtNum(newLeads)} color={C.primaryBg} />
+        <StatCard icon="🚪" label="সাইট ভিজিট" value={fmtNum(siteVisits)} color={C.blueLight} />
+        <StatCard icon="📋" label="কোটেশন প্রদান" value={fmtNum(quotations)} color={C.yellowLight} />
+        <StatCard icon="✅" label="কনফার্ম প্রজেক্ট" value={fmtNum(won)} color={C.greenLight} />
+      </div>
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 12, fontSize: 14 }}>পাইপলাইনে আটকে থাকা লিড</div>
+        {leads.filter(l => l.stage !== "Won" && l.stage !== "Lost").length === 0 ? (
+          <div style={{ color: C.gray400, textAlign: "center", padding: 16, fontSize: 13 }}>কোনো পেন্ডিং লিড নেই</div>
+        ) : (
+          leads.filter(l => l.stage !== "Won" && l.stage !== "Lost").map(l => (
+            <div key={l.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid " + C.gray100, fontSize: 13 }}>
+              <span>{l.client_name} — {l.area}</span>
+              <Badge label={l.stage} color={stageColor[l.stage] || "gray"} />
+            </div>
+          ))
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function MarketingSales() {
+  const [sub, setSub] = useState("leads");
+  const tabs = [["leads", "📋 লিড ট্র্যাকার"], ["important", "⭐ গুরুত্বপূর্ণ লিড"], ["daily", "📝 ডেইলি রিপোর্ট"], ["weekly", "📊 সাপ্তাহিক সারাংশ"]];
+  return (
+    <div>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: C.primaryDark }}>📣 মার্কেটিং ও সেলস</div>
+        <div style={{ fontSize: 12, color: C.gray400 }}>লিড ম্যানেজমেন্ট, ফিল্ড রিপোর্ট ও পারফরম্যান্স ট্র্যাকিং</div>
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap", borderBottom: "1px solid " + C.gray100, paddingBottom: 12 }}>
+        {tabs.map(([id, label]) => (
+          <button key={id} onClick={() => setSub(id)} style={{ background: sub === id ? C.primary : C.white, color: sub === id ? C.white : C.gray800, border: "1px solid " + (sub === id ? C.primary : C.gray200), borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+      {sub === "leads" && <LeadTracker onlyImportant={false} />}
+      {sub === "important" && <LeadTracker onlyImportant={true} />}
+      {sub === "daily" && <DailyActivityReport />}
+      {sub === "weekly" && <WeeklySalesSummary />}
+    </div>
+  );
+}
+
+// ============================================================
 // EMPLOYEES
 // ============================================================
 function Employees({ data, onRefresh }) {
@@ -5596,6 +5883,7 @@ const ALL_MENU = [
   { id: "boq", icon: "📋", label: "Estimate Project", roles: ["admin"] },
   { id: "clients", icon: "👥", label: "ক্লায়েন্ট", roles: ["admin"] },
   { id: "documents", icon: "🧾", label: "রশিদ ও চালান", roles: ["admin"] },
+  { id: "marketing_sales", icon: "📣", label: "মার্কেটিং ও সেলস", roles: ["admin"] },
   { id: "hr_system", icon: "👥", label: "HR ও পে-রোল সিস্টেম", roles: ["admin"] },
   { id: "my_attendance", icon: "🙋", label: "আমার হাজিরা", roles: ["admin", "employee"] },
   { id: "finance", icon: "💰", label: "আর্থিক", roles: ["admin"] },
@@ -6667,6 +6955,7 @@ export default function App() {
               {active === "boq" && canAccessMenu(currentUser, isAdmin, "boq") && <BOQSystem />}
               {active === "clients" && canAccessMenu(currentUser, isAdmin, "clients") && <Clients data={data.clients} onRefresh={loadAll} />}
               {active === "documents" && canAccessMenu(currentUser, isAdmin, "documents") && <DocumentsHub clients={data.clients} />}
+              {active === "marketing_sales" && canAccessMenu(currentUser, isAdmin, "marketing_sales") && <MarketingSales />}
               {active === "hr_system" && hasHRAccess(currentUser, isAdmin) && <HRSystemHub data={data} onRefresh={loadAll} lang={lang} currentUser={currentUser} isAdmin={isAdmin} />}
               {active === "my_attendance" && (isAdmin || currentUser?.role === "employee") && <MyAttendance currentUser={currentUser} lang={lang} />}
               {active === "finance" && canAccessMenu(currentUser, isAdmin, "finance") && <Finance data={data.transactions} onRefresh={loadAll} />}
