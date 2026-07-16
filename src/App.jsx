@@ -35,6 +35,7 @@ const C = {
 };
 
 const fmt = (n) => "৳" + Number(n || 0).toLocaleString("bn-BD");
+const fmtEn = (n) => "৳" + Number(n || 0).toLocaleString("en-US");
 const fmtNum = (n) => Number(n || 0).toLocaleString("bn-BD");
 
 const numToWordsTaka = (num) => {
@@ -3191,12 +3192,14 @@ function Payroll({ employees }) {
 
   const saveEdit = async () => {
     const net = subtotalOf(form.fixed_items) + subtotalOf(form.kpi_items) - subtotalOf(form.penalty_items);
-    await supabase.from("payroll_runs").update({
+    const { error } = await supabase.from("payroll_runs").update({
       position: form.position, fixed_items: form.fixed_items, kpi_items: form.kpi_items,
       penalty_items: form.penalty_items,
       net_pay: net, disbursement_channel: form.disbursement_channel, disbursement_date: form.disbursement_date || null,
     }).eq("id", editItem.id);
-    setEditItem(null); setForm(null); load();
+    if (error) { alert("❌ সংরক্ষণ ব্যর্থ হয়েছে: " + error.message + "\n\nPenalty/KPI/Fixed কিছুই সেভ হয়নি — আবার চেষ্টা করুন।"); return; }
+    setEditItem(null); setForm(null); await load();
+    alert("✅ সংরক্ষণ সফল হয়েছে। এখন Print করলে নতুন Penalty দেখাবে।");
   };
 
   const markPaid = async (r) => {
@@ -3211,9 +3214,10 @@ function Payroll({ employees }) {
     load();
   };
 
-  const doPrint = (r) => {
-    setPrintRow(r);
-    setTimeout(() => printSection("Salary Sheet — " + (empById[r.employee_id]?.name || ""), "payslip-content"), 100);
+  const doPrint = async (r) => {
+    const { data: fresh } = await supabase.from("payroll_runs").select("*").eq("id", r.id).single();
+    setPrintRow(fresh || r);
+    setTimeout(() => printSection("Salary Sheet — " + (empById[(fresh || r).employee_id]?.name || ""), "payslip-content"), 100);
   };
 
   const handleExport = () => exportToExcel(runs.map(r => ({
@@ -3425,20 +3429,20 @@ function Payroll({ employees }) {
       <div style={{ display: "none" }}>
         <div id="payroll-total-content">
           <table>
-            <thead><tr><th>কর্মী</th><th>পদবি</th><th>Fixed</th><th>KPI</th><th>পেনাল্টি</th><th>নীট প্রদেয়</th><th>চ্যানেল</th></tr></thead>
+            <thead><tr><th>Employee</th><th>Position</th><th>Fixed</th><th>KPI</th><th>Penalty</th><th>Net Payable</th><th>Channel</th></tr></thead>
             <tbody>
               {runs.map(r => (
                 <tr key={r.id}>
                   <td>{empById[r.employee_id]?.name}</td>
                   <td>{r.position || empById[r.employee_id]?.role}</td>
-                  <td>{fmt(subtotalOf(r.fixed_items))}</td>
-                  <td>{fmt(subtotalOf(r.kpi_items))}</td>
-                  <td>-{fmt(subtotalOf(r.penalty_items))}</td>
-                  <td style={{ fontWeight: 700 }}>{fmt(netOf(r))}</td>
-                  <td>{DISBURSEMENT_CHANNELS.find(c => c.id === (r.disbursement_channel || "Bank"))?.label}</td>
+                  <td>{fmtEn(subtotalOf(r.fixed_items))}</td>
+                  <td>{fmtEn(subtotalOf(r.kpi_items))}</td>
+                  <td style={{ color: "#c0392b" }}>{subtotalOf(r.penalty_items) > 0 ? "-" + fmtEn(subtotalOf(r.penalty_items)) : fmtEn(0)}</td>
+                  <td style={{ fontWeight: 700 }}>{fmtEn(netOf(r))}</td>
+                  <td>{r.disbursement_channel || "Bank"}</td>
                 </tr>
               ))}
-              <tr><td colSpan={5} style={{ fontWeight: 700 }}>সর্বমোট (Total Office Salary Cost)</td><td style={{ fontWeight: 700 }}>{fmt(totalNet)}</td><td></td></tr>
+              <tr><td colSpan={5} style={{ fontWeight: 700 }}>Total Office Salary Cost</td><td style={{ fontWeight: 700 }}>{fmtEn(totalNet)}</td><td></td></tr>
             </tbody>
           </table>
         </div>
@@ -3460,8 +3464,8 @@ function Payroll({ employees }) {
               <table style={{ marginBottom: 8 }}>
                 <thead><tr><th>Description</th><th>Amount (BDT)</th><th>Note</th></tr></thead>
                 <tbody>
-                  {(printRow.fixed_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td>{fmt(it.amount)}</td><td>{it.note}</td></tr>)}
-                  <tr><td style={{ fontWeight: 700 }}>Fixed Part Sub Total</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.fixed_items))}</td><td></td></tr>
+                  {(printRow.fixed_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td>{fmtEn(it.amount)}</td><td>{it.note}</td></tr>)}
+                  <tr><td style={{ fontWeight: 700 }}>Fixed Part Sub Total</td><td style={{ fontWeight: 700 }}>{fmtEn(subtotalOf(printRow.fixed_items))}</td><td></td></tr>
                 </tbody>
               </table>
 
@@ -3469,23 +3473,23 @@ function Payroll({ employees }) {
               <table style={{ marginBottom: 8 }}>
                 <thead><tr><th>Description</th><th>Amount (BDT)</th><th>Note</th></tr></thead>
                 <tbody>
-                  {(printRow.kpi_items || []).length === 0 ? <tr><td colSpan={3}>—</td></tr> : (printRow.kpi_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td>{fmt(it.amount)}</td><td>{it.note}</td></tr>)}
-                  <tr><td style={{ fontWeight: 700 }}>KPI Part Sub Total</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.kpi_items))}</td><td></td></tr>
+                  {(printRow.kpi_items || []).length === 0 ? <tr><td colSpan={3}>—</td></tr> : (printRow.kpi_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td>{fmtEn(it.amount)}</td><td>{it.note}</td></tr>)}
+                  <tr><td style={{ fontWeight: 700 }}>KPI Part Sub Total</td><td style={{ fontWeight: 700 }}>{fmtEn(subtotalOf(printRow.kpi_items))}</td><td></td></tr>
                 </tbody>
               </table>
 
-              <div style={{ fontWeight: 700, margin: "8px 0 4px" }}>Penalty (as per Article 12.1)</div>
+              <div style={{ fontWeight: 700, margin: "8px 0 4px", color: "#c0392b" }}>Penalty (as per Article 12.1)</div>
               <table style={{ marginBottom: 8 }}>
                 <thead><tr><th>Description</th><th>Amount (BDT)</th><th>Note</th></tr></thead>
                 <tbody>
-                  {(printRow.penalty_items || []).length === 0 ? <tr><td colSpan={3}>—</td></tr> : (printRow.penalty_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td style={{ color: "#c0392b" }}>-{fmt(it.amount)}</td><td>{it.note}</td></tr>)}
-                  <tr><td style={{ fontWeight: 700 }}>Total Penalty Deduction</td><td style={{ fontWeight: 700, color: "#c0392b" }}>{subtotalOf(printRow.penalty_items) > 0 ? "-" + fmt(subtotalOf(printRow.penalty_items)) : fmt(0)}</td><td></td></tr>
+                  {(printRow.penalty_items || []).length === 0 ? <tr><td colSpan={3} style={{ color: "#c0392b" }}>—</td></tr> : (printRow.penalty_items || []).map((it, i) => <tr key={i} style={{ color: "#c0392b" }}><td>{it.label}</td><td>-{fmtEn(it.amount)}</td><td>{it.note}</td></tr>)}
+                  <tr style={{ color: "#c0392b" }}><td style={{ fontWeight: 700 }}>Total Penalty Deduction</td><td style={{ fontWeight: 700 }}>{subtotalOf(printRow.penalty_items) > 0 ? "-" + fmtEn(subtotalOf(printRow.penalty_items)) : fmtEn(0)}</td><td></td></tr>
                 </tbody>
               </table>
 
               <table>
                 <tbody>
-                  <tr><td style={{ fontWeight: 700, fontSize: "11pt" }}>Net Payable</td><td style={{ fontWeight: 700, fontSize: "11pt", color: "#2e7d32" }}>{fmt(netOf(printRow))}</td></tr>
+                  <tr><td style={{ fontWeight: 700, fontSize: "11pt" }}>Net Payable</td><td style={{ fontWeight: 700, fontSize: "11pt", color: "#2e7d32" }}>{fmtEn(netOf(printRow))}</td></tr>
                   <tr><td>Disbursement Channel</td><td>{printRow.disbursement_channel || "Bank"}</td></tr>
                   <tr><td>Status</td><td>{printRow.status === "Paid" ? "Paid" : "Unpaid"}</td></tr>
                 </tbody>
