@@ -141,7 +141,7 @@ const printSection = async (title, contentId, customDate) => {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; }
     html, body { height: 100%; margin: 0; padding: 0; }
-    .page { width: 210mm; min-height: 297mm; padding: 42mm 14mm 26mm 14mm; box-sizing: border-box; position: relative; }
+    .page { width: 210mm; min-height: 297mm; padding: 38mm 14mm 22mm 14mm; box-sizing: border-box; position: relative; }
     /* HEADER - fixed at top of every printed page, exact Noksha Pad layout */
     .pad-header-fixed { }
     @media print {
@@ -162,9 +162,9 @@ const printSection = async (title, contentId, customDate) => {
       margin-bottom: 10px;
     }
     .pad-left {
-      font-size: 9pt;
+      font-size: 8.5pt;
       color: #333;
-      line-height: 1.7;
+      line-height: 1.5;
     }
     .pad-right {
       text-align: right;
@@ -173,7 +173,7 @@ const printSection = async (title, contentId, customDate) => {
       align-items: flex-end;
     }
     .pad-logo-img {
-      height: 55px;
+      height: 46px;
       width: auto;
       object-fit: contain;
     }
@@ -241,7 +241,7 @@ const printSection = async (title, contentId, customDate) => {
           Cell: +88 01619-677070 &nbsp; E-mail: noksha.ltd@gmail.com
         </div>
         <div class="pad-right">
-          <img src="${logoB64}" style="height:55px;width:auto;object-fit:contain" alt="NOKSHA" />
+          <img src="${logoB64}" style="height:46px;width:auto;object-fit:contain" alt="NOKSHA" />
         </div>
       </div>
       <div class="doc-title">${title}</div>
@@ -3169,7 +3169,7 @@ function Payroll({ employees }) {
     setEditItem(r);
     let penaltyItems = r.penalty_items && r.penalty_items.length ? r.penalty_items : [];
     if (penaltyItems.length === 0 && (r.penalty_days || 0) * (r.penalty_rate || 0) > 0) {
-      penaltyItems = [{ label: `Penalty (${r.penalty_days} দিন × ৳${r.penalty_rate})`, amount: r.penalty_days * r.penalty_rate, note: "ধারা ১২.১" }];
+      penaltyItems = [{ label: `Penalty (${r.penalty_days} days x BDT ${r.penalty_rate})`, amount: r.penalty_days * r.penalty_rate, note: "Article 12.1" }];
     }
     setForm({
       position: r.position || empById[r.employee_id]?.role || "",
@@ -3185,7 +3185,7 @@ function Payroll({ employees }) {
   const addQuickPenalty = () => {
     const days = +form.quick_days || 0, rate = +form.quick_rate || 0;
     if (days <= 0 || rate <= 0) return;
-    const line = { label: `Penalty (${days} দিন × ৳${rate})`, amount: days * rate, note: "ধারা ১২.১ অনুযায়ী" };
+    const line = { label: `Penalty (${days} days x BDT ${rate})`, amount: days * rate, note: "As per Article 12.1" };
     setForm({ ...form, penalty_items: [...form.penalty_items, line], quick_days: "", quick_rate: "" });
   };
 
@@ -3239,7 +3239,7 @@ function Payroll({ employees }) {
       const kpi_items = kpiAmt > 0 ? [{ label: "Overall Project Delivery KPI Bonus", amount: kpiAmt, note: "" }] : [];
       const penalty_days = +row["Penalty Days"] || +row["পেনাল্টি দিন"] || 0;
       const penalty_rate = +row["Penalty Rate"] || +row["পেনাল্টি হার"] || 0;
-      const penalty_items = penalty_days * penalty_rate > 0 ? [{ label: `Penalty (${penalty_days} দিন × ৳${penalty_rate})`, amount: penalty_days * penalty_rate, note: "ধারা ১২.১" }] : [];
+      const penalty_items = penalty_days * penalty_rate > 0 ? [{ label: `Penalty (${penalty_days} days x BDT ${penalty_rate})`, amount: penalty_days * penalty_rate, note: "Article 12.1" }] : [];
       const net_pay = subtotalOf(fixed_items) + subtotalOf(kpi_items) - subtotalOf(penalty_items);
 
       const existing = runs.find(r => r.employee_id === emp.id);
@@ -3452,42 +3452,42 @@ function Payroll({ employees }) {
               <table style={{ marginBottom: 10 }}>
                 <tbody>
                   <tr><td style={{ fontWeight: 700, width: "25%" }}>Position For:</td><td colSpan={3}>{printRow.position || empById[printRow.employee_id]?.role}</td></tr>
-                  <tr><td style={{ fontWeight: 700 }}>কর্মচারীর নাম:</td><td>{empById[printRow.employee_id]?.name}</td><td style={{ fontWeight: 700 }}>মাস/বছর:</td><td>{printRow.month}</td></tr>
+                  <tr><td style={{ fontWeight: 700 }}>Employee Name:</td><td>{empById[printRow.employee_id]?.name}</td><td style={{ fontWeight: 700 }}>Month/Year:</td><td>{printRow.month}</td></tr>
                 </tbody>
               </table>
 
-              <div style={{ fontWeight: 700, margin: "10px 0 4px" }}>Fixed Part</div>
-              <table style={{ marginBottom: 10 }}>
-                <thead><tr><th>বিবরণ</th><th>পরিমাণ (৳)</th><th>নোট</th></tr></thead>
+              <div style={{ fontWeight: 700, margin: "8px 0 4px" }}>Fixed Part</div>
+              <table style={{ marginBottom: 8 }}>
+                <thead><tr><th>Description</th><th>Amount (BDT)</th><th>Note</th></tr></thead>
                 <tbody>
                   {(printRow.fixed_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td>{fmt(it.amount)}</td><td>{it.note}</td></tr>)}
-                  <tr><td style={{ fontWeight: 700 }}>Fixed Part সাবটোটাল</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.fixed_items))}</td><td></td></tr>
+                  <tr><td style={{ fontWeight: 700 }}>Fixed Part Sub Total</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.fixed_items))}</td><td></td></tr>
                 </tbody>
               </table>
 
-              <div style={{ fontWeight: 700, margin: "10px 0 4px" }}>KPI Part</div>
-              <table style={{ marginBottom: 10 }}>
-                <thead><tr><th>বিবরণ</th><th>পরিমাণ (৳)</th><th>নোট</th></tr></thead>
+              <div style={{ fontWeight: 700, margin: "8px 0 4px" }}>KPI Part</div>
+              <table style={{ marginBottom: 8 }}>
+                <thead><tr><th>Description</th><th>Amount (BDT)</th><th>Note</th></tr></thead>
                 <tbody>
                   {(printRow.kpi_items || []).length === 0 ? <tr><td colSpan={3}>—</td></tr> : (printRow.kpi_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td>{fmt(it.amount)}</td><td>{it.note}</td></tr>)}
-                  <tr><td style={{ fontWeight: 700 }}>KPI Part সাবটোটাল</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.kpi_items))}</td><td></td></tr>
+                  <tr><td style={{ fontWeight: 700 }}>KPI Part Sub Total</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.kpi_items))}</td><td></td></tr>
                 </tbody>
               </table>
 
-              <div style={{ fontWeight: 700, margin: "10px 0 4px" }}>Penalty (ধারা ১২.১ অনুযায়ী)</div>
-              <table style={{ marginBottom: 10 }}>
-                <thead><tr><th>বিবরণ</th><th>পরিমাণ (৳)</th><th>নোট</th></tr></thead>
+              <div style={{ fontWeight: 700, margin: "8px 0 4px" }}>Penalty (as per Article 12.1)</div>
+              <table style={{ marginBottom: 8 }}>
+                <thead><tr><th>Description</th><th>Amount (BDT)</th><th>Note</th></tr></thead>
                 <tbody>
-                  {(printRow.penalty_items || []).length === 0 ? <tr><td colSpan={3}>—</td></tr> : (printRow.penalty_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td>{fmt(it.amount)}</td><td>{it.note}</td></tr>)}
-                  <tr><td style={{ fontWeight: 700 }}>মোট পেনাল্টি কর্তন</td><td style={{ fontWeight: 700 }}>{fmt(subtotalOf(printRow.penalty_items))}</td><td></td></tr>
+                  {(printRow.penalty_items || []).length === 0 ? <tr><td colSpan={3}>—</td></tr> : (printRow.penalty_items || []).map((it, i) => <tr key={i}><td>{it.label}</td><td style={{ color: "#c0392b" }}>-{fmt(it.amount)}</td><td>{it.note}</td></tr>)}
+                  <tr><td style={{ fontWeight: 700 }}>Total Penalty Deduction</td><td style={{ fontWeight: 700, color: "#c0392b" }}>{subtotalOf(printRow.penalty_items) > 0 ? "-" + fmt(subtotalOf(printRow.penalty_items)) : fmt(0)}</td><td></td></tr>
                 </tbody>
               </table>
 
               <table>
                 <tbody>
-                  <tr><td style={{ fontWeight: 700, fontSize: "11pt" }}>মোট প্রদেয় (Net Payable)</td><td style={{ fontWeight: 700, fontSize: "11pt", color: "#2e7d32" }}>{fmt(netOf(printRow))}</td></tr>
-                  <tr><td>বিতরণ চ্যানেল</td><td>{DISBURSEMENT_CHANNELS.find(c => c.id === (printRow.disbursement_channel || "Bank"))?.label}</td></tr>
-                  <tr><td>স্ট্যাটাস</td><td>{printRow.status === "Paid" ? "পরিশোধিত" : "অপরিশোধিত"}</td></tr>
+                  <tr><td style={{ fontWeight: 700, fontSize: "11pt" }}>Net Payable</td><td style={{ fontWeight: 700, fontSize: "11pt", color: "#2e7d32" }}>{fmt(netOf(printRow))}</td></tr>
+                  <tr><td>Disbursement Channel</td><td>{printRow.disbursement_channel || "Bank"}</td></tr>
+                  <tr><td>Status</td><td>{printRow.status === "Paid" ? "Paid" : "Unpaid"}</td></tr>
                 </tbody>
               </table>
             </div>
