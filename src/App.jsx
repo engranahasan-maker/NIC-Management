@@ -142,7 +142,7 @@ const printSection = async (title, contentId, customDate) => {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; }
     html, body { height: 100%; margin: 0; padding: 0; }
-    .page { width: 210mm; min-height: 297mm; padding: 38mm 14mm 22mm 14mm; box-sizing: border-box; position: relative; }
+    .page { width: 210mm; padding: 38mm 14mm 22mm 14mm; box-sizing: border-box; position: relative; }
     /* HEADER - fixed at top of every printed page, exact Noksha Pad layout */
     .pad-header-fixed { }
     @media print {
@@ -1277,60 +1277,79 @@ const LEAD_SOURCES = ["Facebook", "Referral", "Walk-in", "Field Visit", "অন�
 const LEAD_PROJECT_TYPES = ["Interior", "Civil", "Renovation", "অন্যান্য"];
 const stageColor = { New: "gray", Contacted: "primary", "Site Visit": "yellow", Quotation: "blue", Won: "green", Lost: "red" };
 
-function LeadTracker({ onlyImportant }) {
+function LeadTracker({ onlyImportant, currentUser, isAdmin, employees }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [stageFilter, setStageFilter] = useState("সব");
-  const blankForm = { lead_date: new Date().toISOString().split("T")[0], client_name: "", phone: "", area: "", project_type: "Interior", budget_estimate: "", lead_source: "Facebook", stage: "New", next_action: "", next_followup_date: "", assigned_to: "", notes: "", is_important: false };
+  const [empFilter, setEmpFilter] = useState(""); // admin-only: "" = All employees
+  const blankForm = { lead_date: new Date().toISOString().split("T")[0], client_name: "", phone: "", area: "", project_type: "Interior", budget_estimate: "", lead_source: "Facebook", stage: "New", next_action: "", next_followup_date: "", responsible_id: "", notes: "", is_important: false };
   const [form, setForm] = useState(blankForm);
   const uploadRef = useRef();
+
+  // --- RBAC: figure out which employee_id (if any) this logged-in user is restricted to ---
+  const myEmployeeId = !isAdmin && currentUser?.role === "employee" ? currentUser.employee_id : null;
 
   const load = async () => {
     setLoading(true);
     let q = supabase.from("sales_leads").select("*").order("lead_date", { ascending: false });
     if (onlyImportant) q = q.eq("is_important", true);
+    // Server-side-ish filtering: a non-admin employee ONLY ever queries their own rows.
+    if (myEmployeeId) q = q.eq("responsible_id", myEmployeeId);
     const { data, error } = await q;
     if (error) { console.error(error); setLoading(false); return; }
     setLeads(data || []);
     setLoading(false);
   };
-  useEffect(() => { load(); }, [onlyImportant]);
+  useEffect(() => { load(); }, [onlyImportant, myEmployeeId]);
+
+  const empById = {}; employees.forEach(e => { empById[e.id] = e; });
 
   const save = async () => {
     if (!form.client_name) return alert("ক্লায়েন্টের নাম আবশ্যক");
-    const { error } = editItem ? await supabase.from("sales_leads").update(form).eq("id", editItem.id) : await supabase.from("sales_leads").insert([form]);
+    const payload = { ...form };
+    // A non-admin user can only ever create/keep leads assigned to themselves.
+    if (myEmployeeId) payload.responsible_id = myEmployeeId;
+    const { error } = editItem ? await supabase.from("sales_leads").update(payload).eq("id", editItem.id) : await supabase.from("sales_leads").insert([payload]);
     if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
     setShowModal(false); setForm(blankForm); setEditItem(null); load();
   };
 
-  const del = async (id) => { if (!confirm("এই লিড মুছবেন?")) return; await supabase.from("sales_leads").delete().eq("id", id); load(); };
+  const del = async (id) => {
+    if (!isAdmin) return; // hard client-side gate; Delete button is hidden anyway for non-admins
+    if (!confirm("এই লিড মুছবেন?")) return;
+    await supabase.from("sales_leads").delete().eq("id", id); load();
+  };
   const toggleImportant = async (lead) => { await supabase.from("sales_leads").update({ is_important: !lead.is_important }).eq("id", lead.id); load(); };
   const changeStage = async (lead, stage) => { await supabase.from("sales_leads").update({ stage }).eq("id", lead.id); load(); };
 
-  const handleExport = () => exportToExcel(leads.map(l => ({ তারিখ: l.lead_date, নাম: l.client_name, ফোন: l.phone, এলাকা: l.area, ধরন: l.project_type, বাজেট: l.budget_estimate, সোর্স: l.lead_source, স্ট্যাটাস: l.stage, দায়িত্বপ্রাপ্ত: l.assigned_to })), "Leads", "Lead_Tracker");
+  const handleExport = () => exportToExcel(visibleForKpis.map(l => ({ তারিখ: l.lead_date, নাম: l.client_name, ফোন: l.phone, এলাকা: l.area, ধরন: l.project_type, বাজেট: l.budget_estimate, সোর্স: l.lead_source, স্ট্যাটাস: l.stage, দায়িত্বপ্রাপ্ত: empById[l.responsible_id]?.name || "" })), "Leads", "Lead_Tracker");
   const handleUpload = async (e) => {
     const file = e.target.files[0]; if (!file) return;
     const rows = await parseExcelFile(file);
     let count = 0;
     for (const row of rows) {
       const client_name = row["নাম"] || row["client_name"]; if (!client_name) continue;
+      const responsibleName = row["দায়িত্বপ্রাপ্ত"] || row["responsible"];
+      const matchedEmp = responsibleName ? employees.find(e => e.name === responsibleName) : null;
       await supabase.from("sales_leads").insert([{
         lead_date: row["তারিখ"] || row["lead_date"] || new Date().toISOString().split("T")[0],
         client_name, phone: row["ফোন"] || row["phone"] || "", area: row["এলাকা"] || row["area"] || "",
         project_type: row["ধরন"] || row["project_type"] || "Interior", budget_estimate: row["বাজেট"] || row["budget_estimate"] || "",
         lead_source: row["সোর্স"] || row["lead_source"] || "Facebook", stage: row["স্ট্যাটাস"] || row["stage"] || "New",
-        assigned_to: row["দায়িত্বপ্রাপ্ত"] || row["assigned_to"] || "",
+        responsible_id: myEmployeeId || matchedEmp?.id || null,
       }]);
       count++;
     }
     alert("✅ " + count + "টি লিড যোগ হয়েছে!"); e.target.value = ""; load();
   };
 
-  const filtered = stageFilter === "সব" ? leads : leads.filter(l => l.stage === stageFilter);
+  // Admin-selected employee filter (client-side, on top of the already-loaded admin dataset)
+  const visibleForKpis = isAdmin && empFilter ? leads.filter(l => l.responsible_id === empFilter) : leads;
+  const filtered = stageFilter === "সব" ? visibleForKpis : visibleForKpis.filter(l => l.stage === stageFilter);
   const counts = { New: 0, Contacted: 0, "Site Visit": 0, Quotation: 0, Won: 0, Lost: 0 };
-  leads.forEach(l => { if (counts[l.stage] != null) counts[l.stage]++; });
+  visibleForKpis.forEach(l => { if (counts[l.stage] != null) counts[l.stage]++; });
 
   return (
     <div>
@@ -1340,10 +1359,10 @@ function LeadTracker({ onlyImportant }) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
         <button onClick={() => { setEditItem(null); setForm(blankForm); setShowModal(true); }} style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ নতুন লিড</button>
         <button onClick={handleExport} style={btnEdit}>⬇️ Excel Download</button>
-        <button onClick={() => uploadRef.current?.click()} style={btnEdit}>⬆️ Excel Upload</button>
+        {isAdmin && <button onClick={() => uploadRef.current?.click()} style={btnEdit}>⬆️ Excel Upload</button>}
         <input type="file" ref={uploadRef} onChange={handleUpload} accept=".xlsx,.xls,.csv" style={{ display: "none" }} />
         {!onlyImportant && (
           <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
@@ -1351,6 +1370,14 @@ function LeadTracker({ onlyImportant }) {
             {LEAD_STAGES.map(s => <option key={s}>{s}</option>)}
           </select>
         )}
+        {/* Admin-only: pick a specific employee to see just their leads/KPIs — replaces a generic "All" filter */}
+        {isAdmin && (
+          <select value={empFilter} onChange={e => setEmpFilter(e.target.value)} style={{ ...inputStyle, width: "auto", fontWeight: 600 }}>
+            <option value="">👥 সব কর্মী (All)</option>
+            {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
+        {!isAdmin && <span style={{ fontSize: 12, color: C.gray400 }}>শুধু আপনার নিজের লিড দেখাচ্ছে</span>}
       </div>
 
       <Card>
@@ -1376,11 +1403,11 @@ function LeadTracker({ onlyImportant }) {
                         {LEAD_STAGES.map(s => <option key={s}>{s}</option>)}
                       </select>
                     </td>
-                    <td style={{ padding: "8px 10px" }}>{l.assigned_to}</td>
+                    <td style={{ padding: "8px 10px" }}>{empById[l.responsible_id]?.name || "—"}</td>
                     <td style={{ padding: "8px 10px" }}>
                       <div style={{ display: "flex", gap: 4 }}>
                         <button onClick={() => { setEditItem(l); setForm({ ...blankForm, ...l }); setShowModal(true); }} style={btnEdit}>✏️</button>
-                        <button onClick={() => del(l.id)} style={btnDanger}>🗑️</button>
+                        {isAdmin && <button onClick={() => del(l.id)} style={btnDanger}>🗑️</button>}
                       </div>
                     </td>
                   </tr>
@@ -1412,7 +1439,16 @@ function LeadTracker({ onlyImportant }) {
           <FormField label="পরবর্তী করণীয়"><input style={inputStyle} value={form.next_action} onChange={e => setForm({ ...form, next_action: e.target.value })} /></FormField>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <FormField label="পরবর্তী ফলো-আপ তারিখ"><input type="date" style={inputStyle} value={form.next_followup_date} onChange={e => setForm({ ...form, next_followup_date: e.target.value })} /></FormField>
-            <FormField label="দায়িত্বপ্রাপ্ত ব্যক্তি"><input style={inputStyle} value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })} /></FormField>
+            <FormField label="দায়িত্বপ্রাপ্ত ব্যক্তি">
+              {isAdmin ? (
+                <select style={inputStyle} value={form.responsible_id} onChange={e => setForm({ ...form, responsible_id: e.target.value })}>
+                  <option value="">— বাছাই করুন —</option>
+                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              ) : (
+                <input style={{ ...inputStyle, background: C.gray50 }} value={empById[myEmployeeId]?.name || "আমি"} disabled />
+              )}
+            </FormField>
           </div>
           <FormField label="মন্তব্য"><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></FormField>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
@@ -1426,23 +1462,34 @@ function LeadTracker({ onlyImportant }) {
   );
 }
 
-function DailyActivityReport() {
+function DailyActivityReport({ currentUser, isAdmin, employees }) {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const blankForm = { report_date: new Date().toISOString().split("T")[0], team_member: "", area_visited: "", people_met: "", new_leads_count: 0, followups_count: 0, notes: "", tomorrow_plan: "" };
+  const myEmployeeId = !isAdmin && currentUser?.role === "employee" ? currentUser.employee_id : null;
+  const empById = {}; employees.forEach(e => { empById[e.id] = e; });
+  const blankForm = { report_date: new Date().toISOString().split("T")[0], responsible_id: myEmployeeId || "", area_visited: "", people_met: "", new_leads_count: 0, followups_count: 0, notes: "", tomorrow_plan: "" };
   const [form, setForm] = useState(blankForm);
 
-  const load = async () => { setLoading(true); const { data } = await supabase.from("daily_activity_reports").select("*").order("report_date", { ascending: false }).limit(50); setReports(data || []); setLoading(false); };
-  useEffect(() => { load(); }, []);
+  const load = async () => {
+    setLoading(true);
+    let q = supabase.from("daily_activity_reports").select("*").order("report_date", { ascending: false }).limit(50);
+    if (myEmployeeId) q = q.eq("responsible_id", myEmployeeId);
+    const { data } = await q;
+    setReports(data || []); setLoading(false);
+  };
+  useEffect(() => { load(); }, [myEmployeeId]);
 
   const save = async () => {
-    if (!form.team_member || !form.area_visited) return alert("টিম মেম্বার ও এলাকা আবশ্যক");
-    const { error } = await supabase.from("daily_activity_reports").insert([form]);
+    if (!form.area_visited) return alert("এলাকা আবশ্যক");
+    const payload = { ...form };
+    if (myEmployeeId) payload.responsible_id = myEmployeeId;
+    if (!payload.responsible_id) return alert("দায়িত্বপ্রাপ্ত ব্যক্তি আবশ্যক");
+    const { error } = await supabase.from("daily_activity_reports").insert([payload]);
     if (error) return alert("❌ ব্যর্থ: " + error.message);
     setShowModal(false); setForm(blankForm); load();
   };
-  const del = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("daily_activity_reports").delete().eq("id", id); load(); };
+  const del = async (id) => { if (!isAdmin) return; if (!confirm("মুছবেন?")) return; await supabase.from("daily_activity_reports").delete().eq("id", id); load(); };
 
   return (
     <div>
@@ -1457,13 +1504,13 @@ function DailyActivityReport() {
               {reports.map(r => (
                 <tr key={r.id} style={{ borderBottom: "1px solid " + C.gray100 }}>
                   <td style={{ padding: "8px 10px" }}>{r.report_date}</td>
-                  <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{r.team_member}</td>
+                  <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{empById[r.responsible_id]?.name || "—"}</td>
                   <td style={{ padding: "8px 10px" }}>{r.area_visited}</td>
                   <td style={{ padding: "8px 10px", fontSize: 11, color: C.gray600 }}>{r.people_met}</td>
                   <td style={{ padding: "8px 10px" }}>{fmtNum(r.new_leads_count)}</td>
                   <td style={{ padding: "8px 10px" }}>{fmtNum(r.followups_count)}</td>
                   <td style={{ padding: "8px 10px", fontSize: 11, color: C.gray600 }}>{r.notes}</td>
-                  <td style={{ padding: "8px 10px" }}><button onClick={() => del(r.id)} style={btnDanger}>🗑️</button></td>
+                  <td style={{ padding: "8px 10px" }}>{isAdmin && <button onClick={() => del(r.id)} style={btnDanger}>🗑️</button>}</td>
                 </tr>
               ))}
             </tbody>
@@ -1475,7 +1522,14 @@ function DailyActivityReport() {
         <Modal title="নতুন ডেইলি রিপোর্ট" onClose={() => setShowModal(false)}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <FormField label="তারিখ"><input type="date" style={inputStyle} value={form.report_date} onChange={e => setForm({ ...form, report_date: e.target.value })} /></FormField>
-            <FormField label="টিম মেম্বার *"><input style={inputStyle} value={form.team_member} onChange={e => setForm({ ...form, team_member: e.target.value })} /></FormField>
+            <FormField label="টিম মেম্বার *">
+              {isAdmin ? (
+                <select style={inputStyle} value={form.responsible_id} onChange={e => setForm({ ...form, responsible_id: e.target.value })}>
+                  <option value="">— বাছাই করুন —</option>
+                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              ) : <input style={{ ...inputStyle, background: C.gray50 }} value={empById[myEmployeeId]?.name || "আমি"} disabled />}
+            </FormField>
           </div>
           <FormField label="আজকের ভিজিট করা এলাকা *"><input style={inputStyle} value={form.area_visited} onChange={e => setForm({ ...form, area_visited: e.target.value })} /></FormField>
           <FormField label="সাক্ষাৎ করা ব্যক্তি/প্রতিষ্ঠান"><input style={inputStyle} value={form.people_met} onChange={e => setForm({ ...form, people_met: e.target.value })} /></FormField>
@@ -1492,17 +1546,26 @@ function DailyActivityReport() {
   );
 }
 
-function WeeklySalesSummary() {
+function WeeklySalesSummary({ currentUser, isAdmin, employees }) {
   const [leads, setLeads] = useState([]);
+  const [empFilter, setEmpFilter] = useState("");
+  const myEmployeeId = !isAdmin && currentUser?.role === "employee" ? currentUser.employee_id : null;
+  const empById = {}; employees.forEach(e => { empById[e.id] = e; });
   const [range, setRange] = useState({ start: new Date(new Date().setDate(new Date().getDate() - 6)).toISOString().split("T")[0], end: new Date().toISOString().split("T")[0] });
 
-  const load = async () => { const { data } = await supabase.from("sales_leads").select("*").gte("lead_date", range.start).lte("lead_date", range.end); setLeads(data || []); };
-  useEffect(() => { load(); }, [range]);
+  const load = async () => {
+    let q = supabase.from("sales_leads").select("*").gte("lead_date", range.start).lte("lead_date", range.end);
+    if (myEmployeeId) q = q.eq("responsible_id", myEmployeeId);
+    const { data } = await q;
+    setLeads(data || []);
+  };
+  useEffect(() => { load(); }, [range, myEmployeeId]);
 
-  const newLeads = leads.length;
-  const siteVisits = leads.filter(l => l.stage === "Site Visit" || l.stage === "Quotation" || l.stage === "Won").length;
-  const quotations = leads.filter(l => l.stage === "Quotation" || l.stage === "Won").length;
-  const won = leads.filter(l => l.stage === "Won").length;
+  const visible = isAdmin && empFilter ? leads.filter(l => l.responsible_id === empFilter) : leads;
+  const newLeads = visible.length;
+  const siteVisits = visible.filter(l => l.stage === "Site Visit" || l.stage === "Quotation" || l.stage === "Won").length;
+  const quotations = visible.filter(l => l.stage === "Quotation" || l.stage === "Won").length;
+  const won = visible.filter(l => l.stage === "Won").length;
 
   return (
     <div>
@@ -1510,6 +1573,12 @@ function WeeklySalesSummary() {
         <input type="date" value={range.start} onChange={e => setRange({ ...range, start: e.target.value })} style={{ ...inputStyle, width: "auto" }} />
         <span style={{ color: C.gray600 }}>→</span>
         <input type="date" value={range.end} onChange={e => setRange({ ...range, end: e.target.value })} style={{ ...inputStyle, width: "auto" }} />
+        {isAdmin && (
+          <select value={empFilter} onChange={e => setEmpFilter(e.target.value)} style={{ ...inputStyle, width: "auto", fontWeight: 600 }}>
+            <option value="">👥 সব কর্মী (All)</option>
+            {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 14 }}>
         <StatCard icon="🆕" label="নতুন লিড" value={fmtNum(newLeads)} color={C.primaryBg} />
@@ -1519,12 +1588,12 @@ function WeeklySalesSummary() {
       </div>
       <Card style={{ marginTop: 16 }}>
         <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 12, fontSize: 14 }}>পাইপলাইনে আটকে থাকা লিড</div>
-        {leads.filter(l => l.stage !== "Won" && l.stage !== "Lost").length === 0 ? (
+        {visible.filter(l => l.stage !== "Won" && l.stage !== "Lost").length === 0 ? (
           <div style={{ color: C.gray400, textAlign: "center", padding: 16, fontSize: 13 }}>কোনো পেন্ডিং লিড নেই</div>
         ) : (
-          leads.filter(l => l.stage !== "Won" && l.stage !== "Lost").map(l => (
+          visible.filter(l => l.stage !== "Won" && l.stage !== "Lost").map(l => (
             <div key={l.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid " + C.gray100, fontSize: 13 }}>
-              <span>{l.client_name} — {l.area}</span>
+              <span>{l.client_name} — {l.area} {isAdmin && empById[l.responsible_id] ? "(" + empById[l.responsible_id].name + ")" : ""}</span>
               <Badge label={l.stage} color={stageColor[l.stage] || "gray"} />
             </div>
           ))
@@ -1534,27 +1603,28 @@ function WeeklySalesSummary() {
   );
 }
 
-function MarketingSales() {
+function MarketingSales({ currentUser, isAdmin, employees }) {
   const [sub, setSub] = useState("leads");
   const tabs = [["leads", "📋 লিড ট্র্যাকার"], ["important", "⭐ গুরুত্বপূর্ণ লিড"], ["daily", "📝 ডেইলি রিপোর্ট"], ["weekly", "📊 সাপ্তাহিক সারাংশ"]];
   return (
     <div>
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: C.primaryDark }}>📣 মার্কেটিং ও সেলস</div>
-        <div style={{ fontSize: 12, color: C.gray400 }}>লিড ম্যানেজমেন্ট, ফিল্ড রিপোর্ট ও পারফরম্যান্স ট্র্যাকিং</div>
+        <div style={{ fontSize: 12, color: C.gray400 }}>লিড ম্যানেজমেন্ট, ফিল্ড রিপোর্ট ও পারফরম্যান্স ট্র্যাকিং{!isAdmin ? " — শুধু আপনার নিজের ডেটা" : ""}</div>
       </div>
       <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap", borderBottom: "1px solid " + C.gray100, paddingBottom: 12 }}>
         {tabs.map(([id, label]) => (
           <button key={id} onClick={() => setSub(id)} style={{ background: sub === id ? C.primary : C.white, color: sub === id ? C.white : C.gray800, border: "1px solid " + (sub === id ? C.primary : C.gray200), borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
         ))}
       </div>
-      {sub === "leads" && <LeadTracker onlyImportant={false} />}
-      {sub === "important" && <LeadTracker onlyImportant={true} />}
-      {sub === "daily" && <DailyActivityReport />}
-      {sub === "weekly" && <WeeklySalesSummary />}
+      {sub === "leads" && <LeadTracker onlyImportant={false} currentUser={currentUser} isAdmin={isAdmin} employees={employees} />}
+      {sub === "important" && <LeadTracker onlyImportant={true} currentUser={currentUser} isAdmin={isAdmin} employees={employees} />}
+      {sub === "daily" && <DailyActivityReport currentUser={currentUser} isAdmin={isAdmin} employees={employees} />}
+      {sub === "weekly" && <WeeklySalesSummary currentUser={currentUser} isAdmin={isAdmin} employees={employees} />}
     </div>
   );
 }
+
 
 // ============================================================
 // EMPLOYEES
@@ -6959,7 +7029,7 @@ export default function App() {
               {active === "boq" && canAccessMenu(currentUser, isAdmin, "boq") && <BOQSystem />}
               {active === "clients" && canAccessMenu(currentUser, isAdmin, "clients") && <Clients data={data.clients} onRefresh={loadAll} />}
               {active === "documents" && canAccessMenu(currentUser, isAdmin, "documents") && <DocumentsHub clients={data.clients} />}
-              {active === "marketing_sales" && canAccessMenu(currentUser, isAdmin, "marketing_sales") && <MarketingSales />}
+              {active === "marketing_sales" && canAccessMenu(currentUser, isAdmin, "marketing_sales") && <MarketingSales currentUser={currentUser} isAdmin={isAdmin} employees={data.employees} />}
               {active === "hr_system" && hasHRAccess(currentUser, isAdmin) && <HRSystemHub data={data} onRefresh={loadAll} lang={lang} currentUser={currentUser} isAdmin={isAdmin} />}
               {active === "my_attendance" && (isAdmin || currentUser?.role === "employee") && <MyAttendance currentUser={currentUser} lang={lang} />}
               {active === "finance" && canAccessMenu(currentUser, isAdmin, "finance") && <Finance data={data.transactions} onRefresh={loadAll} />}
