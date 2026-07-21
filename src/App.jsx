@@ -1308,7 +1308,7 @@ function LeadTracker({ onlyImportant, currentUser, isAdmin, employees }) {
 
   const save = async () => {
     if (!form.client_name) return alert("ক্লায়েন্টের নাম আবশ্যক");
-    const payload = { ...form };
+    const { id, created_at, ...payload } = form;
     // A non-admin user can only ever create/keep leads assigned to themselves.
     if (myEmployeeId) payload.responsible_id = myEmployeeId;
     const { error } = editItem ? await supabase.from("sales_leads").update(payload).eq("id", editItem.id) : await supabase.from("sales_leads").insert([payload]);
@@ -1642,7 +1642,8 @@ function Employees({ data, onRefresh }) {
 
   const save = async () => {
     if (!form.name || !form.role) return alert("নাম ও পদবি আবশ্যক");
-    const payload = { ...form, salary: +form.salary || 0 };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, salary: +form.salary || 0 };
     if (editItem) {
       const { error } = await supabase.from("employees").update(payload).eq("id", editItem.id);
       if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
@@ -6791,9 +6792,11 @@ function UserManagement({ employees, lang }) {
 
   const save = async () => {
     if (!form.name || !form.email || !form.password_hash) return alert("নাম, ইমেইল ও পাসওয়ার্ড আবশ্যক");
-    const payload = { ...form, employee_id: form.employee_id || null };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, employee_id: form.employee_id || null };
     if (editItem) {
-      await supabase.from("app_users").update(payload).eq("id", editItem.id);
+      const { error } = await supabase.from("app_users").update(payload).eq("id", editItem.id);
+      if (error) return alert("❌ সংরক্ষণ ব্যর্থ: " + error.message);
     } else {
       const { error } = await supabase.from("app_users").insert([payload]);
       if (error) return alert("Error: " + error.message);
