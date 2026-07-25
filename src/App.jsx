@@ -689,7 +689,8 @@ function Projects({ data, onRefresh }) {
 
   const save = async () => {
     if (!form.name || !form.client) return alert("নাম ও ক্লায়েন্ট আবশ্যক");
-    const payload = { ...form, budget: +form.budget || 0, spent: +form.spent || 0, progress: +form.progress || 0 };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, budget: +form.budget || 0, spent: +form.spent || 0, progress: +form.progress || 0 };
     if (editItem) {
       await supabase.from("projects").update(payload).eq("id", editItem.id);
     } else {
@@ -792,10 +793,11 @@ function Clients({ data, onRefresh }) {
 
   const save = async () => {
     if (!form.name || !form.phone) return alert("নাম ও ফোন আবশ্যক");
+    const { id, created_at, ...payload } = form;
     if (editItem) {
-      await supabase.from("clients").update(form).eq("id", editItem.id);
+      await supabase.from("clients").update(payload).eq("id", editItem.id);
     } else {
-      await supabase.from("clients").insert([{ ...form, join_date: new Date().toISOString().split("T")[0] }]);
+      await supabase.from("clients").insert([{ ...payload, join_date: new Date().toISOString().split("T")[0] }]);
     }
     onRefresh(); setShowModal(false);
   };
@@ -3587,7 +3589,8 @@ function Finance({ data, onRefresh }) {
 
   const save = async () => {
     if (!form.description || !form.amount) return alert("বিবরণ ও পরিমাণ আবশ্যক");
-    const payload = { ...form, amount: +form.amount };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, amount: +form.amount };
     if (editItem) { await supabase.from("transactions").update(payload).eq("id", editItem.id); }
     else { await supabase.from("transactions").insert([payload]); }
     onRefresh(); setShowModal(false);
@@ -4201,7 +4204,8 @@ function Materials({ data, onRefresh }) {
 
   const save = async () => {
     if (!form.name) return alert("নাম আবশ্যক");
-    const payload = { ...form, stock: +form.stock || 0, min_stock: +form.min_stock || 0, unit_price: +form.unit_price || 0 };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, stock: +form.stock || 0, min_stock: +form.min_stock || 0, unit_price: +form.unit_price || 0 };
     if (editItem) { await supabase.from("materials").update(payload).eq("id", editItem.id); }
     else { await supabase.from("materials").insert([payload]); }
     onRefresh(); setShowModal(false);
@@ -4295,7 +4299,8 @@ function SiteProgress({ data, projects, onRefresh }) {
 
   const save = async () => {
     if (!form.project || !form.work) return alert("প্রজেক্ট ও কাজের বিবরণ আবশ্যক");
-    const payload = { ...form, workers: +form.workers || 0 };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, workers: +form.workers || 0 };
     if (editItem) { await supabase.from("site_progress").update(payload).eq("id", editItem.id); }
     else { await supabase.from("site_progress").insert([payload]); }
     onRefresh(); setShowModal(false);
@@ -5397,7 +5402,8 @@ function CPDailyUpdates({ projectId }) {
   const load = async () => { const { data } = await supabase.from("site_daily_updates").select("*").eq("project_id", projectId).order("update_date", { ascending: false }); setItems(data || []); };
   const save = async () => {
     if (!form.work_done) return alert("কাজের বিবরণ আবশ্যক");
-    const payload = { ...form, project_id: projectId, workers_count: +form.workers_count || 0, progress_pct: +form.progress_pct || 0 };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, project_id: projectId, workers_count: +form.workers_count || 0, progress_pct: +form.progress_pct || 0 };
     if (editItem) { await supabase.from("site_daily_updates").update(payload).eq("id", editItem.id); } else { await supabase.from("site_daily_updates").insert([payload]); }
     await load(); setShowModal(false); setEditItem(null);
   };
@@ -5482,7 +5488,8 @@ function CPExpenses({ projectId }) {
   const save = async () => {
     if (!form.item_name || !form.unit_price) return alert("আইটেম ও মূল্য আবশ্যক");
     const qty = +form.quantity || 1; const price = +form.unit_price || 0;
-    const payload = { ...form, project_id: projectId, quantity: qty, unit_price: price, amount: qty * price };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, project_id: projectId, quantity: qty, unit_price: price, amount: qty * price };
     if (editItem) { await supabase.from("site_expenses").update(payload).eq("id", editItem.id); } else { await supabase.from("site_expenses").insert([payload]); }
     await load(); setShowModal(false); setEditItem(null);
   };
@@ -5749,7 +5756,8 @@ function CPStock({ projectId }) {
     if (!form.item_name) return alert("আইটেমের নাম আবশ্যক");
     const received = +form.received || 0; const opening = +form.opening_stock || 0; const used = +form.used || 0;
     const closing = opening + received - used; const price = +form.unit_price || 0;
-    const payload = { ...form, project_id: projectId, opening_stock: opening, received, used, closing_stock: closing, unit_price: price, total_value: closing * price, min_stock: +form.min_stock || 0 };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, project_id: projectId, opening_stock: opening, received, used, closing_stock: closing, unit_price: price, total_value: closing * price, min_stock: +form.min_stock || 0 };
     if (editItem) { await supabase.from("site_stock").update(payload).eq("id", editItem.id); } else { await supabase.from("site_stock").insert([payload]); }
     await load(); setShowModal(false); setEditItem(null);
   };
@@ -5822,7 +5830,8 @@ function CPPayments({ projectId }) {
   const load = async () => { const { data } = await supabase.from("site_received_payments").select("*").eq("project_id", projectId).order("receive_date", { ascending: false }); setItems(data || []); };
   const save = async () => {
     if (!form.amount) return alert("পরিমাণ আবশ্যক");
-    const payload = { ...form, project_id: projectId, amount: +form.amount };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, project_id: projectId, amount: +form.amount };
     if (editItem) { await supabase.from("site_received_payments").update(payload).eq("id", editItem.id); } else { await supabase.from("site_received_payments").insert([payload]); }
     await load(); setShowModal(false); setEditItem(null);
   };
@@ -6139,7 +6148,8 @@ function IPDailyUpdates({ projectId }) {
   const load = async () => { const { data } = await supabase.from("interior_daily_updates").select("*").eq("project_id", projectId).order("update_date", { ascending: false }); setItems(data || []); };
   const save = async () => {
     if (!form.work_done) return alert("কাজের বিবরণ আবশ্যক");
-    const payload = { ...form, project_id: projectId, workers_count: +form.workers_count || 0, progress_pct: +form.progress_pct || 0 };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, project_id: projectId, workers_count: +form.workers_count || 0, progress_pct: +form.progress_pct || 0 };
     if (editItem) { await supabase.from("interior_daily_updates").update(payload).eq("id", editItem.id); }
     else { await supabase.from("interior_daily_updates").insert([payload]); }
     await load(); setShowModal(false); setEditItem(null);
@@ -6211,7 +6221,8 @@ function IPExpenses({ projectId }) {
   const save = async () => {
     if (!form.item_name || !form.unit_price) return alert("আইটেম ও মূল্য আবশ্যক");
     const qty = +form.quantity || 1; const price = +form.unit_price || 0;
-    const payload = { ...form, project_id: projectId, quantity: qty, unit_price: price, amount: qty * price };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, project_id: projectId, quantity: qty, unit_price: price, amount: qty * price };
     if (editItem) { await supabase.from("interior_expenses").update(payload).eq("id", editItem.id); }
     else { await supabase.from("interior_expenses").insert([payload]); }
     await load(); setShowModal(false); setEditItem(null);
@@ -6466,7 +6477,8 @@ function IPStock({ projectId }) {
     if (!form.item_name) return alert("নাম আবশ্যক");
     const received = +form.received || 0; const opening = +form.opening_stock || 0; const used = +form.used || 0;
     const closing = opening + received - used; const price = +form.unit_price || 0;
-    const payload = { ...form, project_id: projectId, opening_stock: opening, received, used, closing_stock: closing, unit_price: price, total_value: closing * price, min_stock: +form.min_stock || 0 };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, project_id: projectId, opening_stock: opening, received, used, closing_stock: closing, unit_price: price, total_value: closing * price, min_stock: +form.min_stock || 0 };
     if (editItem) { await supabase.from("interior_stock").update(payload).eq("id", editItem.id); }
     else { await supabase.from("interior_stock").insert([payload]); }
     await load(); setShowModal(false); setEditItem(null);
@@ -6536,7 +6548,8 @@ function IPPayments({ projectId }) {
   const load = async () => { const { data } = await supabase.from("interior_received_payments").select("*").eq("project_id", projectId).order("receive_date", { ascending: false }); setItems(data || []); };
   const save = async () => {
     if (!form.amount) return alert("পরিমাণ আবশ্যক");
-    const payload = { ...form, project_id: projectId, amount: +form.amount };
+    const { id, created_at, ...rest } = form;
+    const payload = { ...rest, project_id: projectId, amount: +form.amount };
     if (editItem) { await supabase.from("interior_received_payments").update(payload).eq("id", editItem.id); }
     else { await supabase.from("interior_received_payments").insert([payload]); }
     await load(); setShowModal(false); setEditItem(null);
