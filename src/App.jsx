@@ -4503,6 +4503,7 @@ function BOQSystem() {
   const [showEditProjModal, setShowEditProjModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
   const [showMultiItemModal, setShowMultiItemModal] = useState(false);
+  const boqUploadRef = useRef();
   const [editItem, setEditItem] = useState(null);
 
   useEffect(() => { loadProjects(); loadStdRates(); }, []);
@@ -4638,6 +4639,43 @@ function BOQSystem() {
     setShowMultiItemModal(false);
   };
 
+  const handleBOQExport = () => {
+    if (boqItems.length === 0) return alert("এই Project-এ কোনো Item নেই!");
+    exportToExcel(sortedBoqItems.map(it => ({
+      Room: it.room_name, "Code No": it.code_no, "Item No": it.item_no, "Item Name": it.item_name,
+      "Work Description": it.work_description, Specification: it.specification, Unit: it.unit,
+      Quantity: it.qty, Rate: it.rate, Amount: it.amount,
+    })), "BOQ", "BOQ_" + (settings?.project_name || selProj));
+  };
+
+  const handleBOQImport = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    if (!selProj) { alert("আগে একটি Project select করুন!"); e.target.value = ""; return; }
+    const rows = await parseExcelFile(file);
+    const maxSort = boqItems.reduce((m, it) => Math.max(m, it.sort_order ?? 0), 0);
+    let count = 0;
+    const payloads = [];
+    rows.forEach((row, i) => {
+      const item_name = row["Item Name"] || row["item_name"]; if (!item_name) return;
+      const qty = +row["Quantity"] || +row["qty"] || 0;
+      const rate = +row["Rate"] || +row["rate"] || 0;
+      payloads.push({
+        project_id: selProj, room_name: row["Room"] || row["room_name"] || "Master Bedroom",
+        code_no: row["Code No"] || row["code_no"] || "", item_no: +row["Item No"] || +row["item_no"] || 1,
+        item_name, work_description: row["Work Description"] || row["work_description"] || "",
+        specification: row["Specification"] || row["specification"] || "",
+        unit: row["Unit"] || row["unit"] || "sft", qty, rate, amount: qty * rate,
+        is_rate_fixed: false, sort_order: maxSort + i + 1,
+      });
+      count++;
+    });
+    if (count === 0) { alert("❌ কোনো valid Item পাওয়া যায়নি Excel ফাইলে (Item Name/Quantity/Rate কলাম চেক করুন)"); e.target.value = ""; return; }
+    const { error } = await supabase.from("project_boq").insert(payloads);
+    if (error) { alert("❌ আপলোড ব্যর্থ: " + error.message); e.target.value = ""; return; }
+    alert("✅ " + count + "টি Item Excel থেকে যোগ হয়েছে!");
+    e.target.value = ""; await loadBOQ(selProj);
+  };
+
   const saveExpense = async (form) => { if (!selProj) return alert("আগে Project select করুন!"); const qty2 = Number(form.qty) || 1; const rate2 = Number(form.rate) || 0; const r = await supabase.from("project_expenses").insert([{ project_id: selProj, expense_date: form.expense_date || new Date().toISOString().split("T")[0], item_name: form.item_name || "", description: form.description || "", qty: qty2, rate: rate2, amount: qty2 * rate2, category: form.category || "material" }]); if (r.error) { alert("Error: " + r.error.message); return; } await loadExpenses(selProj); };
   const deleteExpense = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("project_expenses").delete().eq("id", id); await loadExpenses(selProj); };
 
@@ -4692,10 +4730,13 @@ function BOQSystem() {
           {/* BOQ TAB */}
           {tab === "boq" && (
             <div>
-              <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
                 <button onClick={() => { setEditItem(null); setShowItemModal(true); }} style={{ background: C.primary, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>+ Item যোগ করুন</button>
                 <button onClick={() => setShowMultiItemModal(true)} style={{ background: "#2A5C8F", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>+ একসাথে একাধিক Item</button>
                 <button onClick={handlePrint} style={{ background: C.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>🖨️ Print / PDF</button>
+                <button onClick={handleBOQExport} style={{ background: C.green, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>⬇️ Excel Download</button>
+                <button onClick={() => boqUploadRef.current?.click()} style={{ background: "#2A5C8F", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>⬆️ Excel Upload</button>
+                <input type="file" ref={boqUploadRef} onChange={handleBOQImport} accept=".xlsx,.xls,.csv" style={{ display: "none" }} />
               </div>
 
               {loading ? <div style={{ textAlign: "center", padding: 40, color: C.gray400 }}>লোড হচ্ছে...</div> : (
