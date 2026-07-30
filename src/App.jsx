@@ -4676,6 +4676,16 @@ function BOQSystem() {
     e.target.value = ""; await loadBOQ(selProj);
   };
 
+  const deleteAllBOQItems = async () => {
+    if (boqItems.length === 0) return alert("এই Project-এ কোনো Item নেই!");
+    if (!confirm("⚠️ এই Project-এর সবগুলো (" + boqItems.length + "টি) Item একসাথে মুছে ফেলতে চান? এটা আর ফেরত আনা যাবে না।")) return;
+    if (!confirm("সত্যিই নিশ্চিত? সব Item স্থায়ীভাবে মুছে যাবে।")) return;
+    const { error } = await supabase.from("project_boq").delete().eq("project_id", selProj);
+    if (error) return alert("❌ মুছতে ব্যর্থ: " + error.message);
+    alert("✅ সব Item মুছে ফেলা হয়েছে।");
+    await loadBOQ(selProj);
+  };
+
   const saveExpense = async (form) => { if (!selProj) return alert("আগে Project select করুন!"); const qty2 = Number(form.qty) || 1; const rate2 = Number(form.rate) || 0; const r = await supabase.from("project_expenses").insert([{ project_id: selProj, expense_date: form.expense_date || new Date().toISOString().split("T")[0], item_name: form.item_name || "", description: form.description || "", qty: qty2, rate: rate2, amount: qty2 * rate2, category: form.category || "material" }]); if (r.error) { alert("Error: " + r.error.message); return; } await loadExpenses(selProj); };
   const deleteExpense = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("project_expenses").delete().eq("id", id); await loadExpenses(selProj); };
 
@@ -4737,6 +4747,7 @@ function BOQSystem() {
                 <button onClick={handleBOQExport} style={{ background: C.green, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>⬇️ Excel Download</button>
                 <button onClick={() => boqUploadRef.current?.click()} style={{ background: "#2A5C8F", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>⬆️ Excel Upload</button>
                 <input type="file" ref={boqUploadRef} onChange={handleBOQImport} accept=".xlsx,.xls,.csv" style={{ display: "none" }} />
+                <button onClick={deleteAllBOQItems} style={{ background: C.red, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>🗑️ সব Delete করুন</button>
               </div>
 
               {loading ? <div style={{ textAlign: "center", padding: 40, color: C.gray400 }}>লোড হচ্ছে...</div> : (
