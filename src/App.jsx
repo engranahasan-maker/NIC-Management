@@ -4504,6 +4504,7 @@ function BOQSystem() {
   const [showItemModal, setShowItemModal] = useState(false);
   const [showMultiItemModal, setShowMultiItemModal] = useState(false);
   const boqUploadRef = useRef();
+  const boqDocUploadRef = useRef();
   const [editItem, setEditItem] = useState(null);
 
   useEffect(() => { loadProjects(); loadStdRates(); }, []);
@@ -4686,6 +4687,125 @@ function BOQSystem() {
     await loadBOQ(selProj);
   };
 
+  // ---- DOC (Word) export/import: mirrors the exact printable layout ----
+  const handleBOQDocDownload = async () => {
+    if (!selProj) return alert("আগে একটি Project select করুন!");
+    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, AlignmentType } = await import("docx");
+
+    const mkCell = (text, opts = {}) => new TableCell({ children: [new Paragraph({ alignment: opts.align, children: [new TextRun({ text: String(text ?? ""), bold: !!opts.bold, color: opts.color })] })], shading: opts.fill ? { fill: opts.fill } : undefined, columnSpan: opts.span });
+
+    const children = [
+      new Paragraph({ text: "PRELIMINARY QUOTATION FOR INTERIOR WORK (Flat)", heading: HeadingLevel.HEADING_1 }),
+      new Paragraph({ text: "SL: " + (settings?.serial_no || genSerialNo()), alignment: AlignmentType.RIGHT }),
+      new Paragraph({ text: "" }),
+      new Paragraph({ text: "To," }),
+      new Paragraph({ text: "Client Name: " + (settings?.client_name || "") }),
+      new Paragraph({ text: "Project Location: " + (settings?.client_address || "") }),
+      new Paragraph({ text: "" }),
+      new Paragraph({ text: "Dear Sir," }),
+      new Paragraph({ text: "We are looking forward to receiving your response to discuss the design and specification." }),
+      new Paragraph({ text: "" }),
+    ];
+
+    Object.entries(roomGroups).forEach(([room, items]) => {
+      const roomTotal = items.reduce((s, i) => s + Number(i.amount || 0), 0);
+      children.push(new Paragraph({ text: room, heading: HeadingLevel.HEADING_2 }));
+      children.push(new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({ children: ["Code No", "Item No", "Work Description & Specification", "Unit", "Quantity", "Rate (BDT)", "Amount (BDT)"].map(h => mkCell(h, { bold: true, color: "FFFFFF", fill: "3F5F45" })) }),
+          ...items.map(it => new TableRow({
+            children: [
+              mkCell(it.code_no), mkCell(it.item_no),
+              mkCell((it.item_name || "") + (it.specification ? "\n" + it.specification : "")),
+              mkCell(it.unit), mkCell(it.qty), mkCell(fmtEn(it.rate)), mkCell(fmtEn(it.amount)),
+            ],
+          })),
+          new TableRow({ children: [mkCell("Sub Total (" + room + ")", { bold: true, span: 6, align: AlignmentType.RIGHT }), mkCell(fmtEn(roomTotal), { bold: true })] }),
+        ],
+      }));
+      children.push(new Paragraph({ text: "" }));
+    });
+
+    children.push(new Table({
+      width: { size: 50, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({ children: [mkCell("Grand Total", { bold: true }), mkCell(fmtEn(grandTotal))] }),
+        new TableRow({ children: [mkCell("Delivery Charge", { bold: true }), mkCell(fmtEn(deliveryCharge))] }),
+        new TableRow({ children: [mkCell("Subtotal", { bold: true }), mkCell(fmtEn(subTotal), { bold: true })] }),
+      ],
+    }));
+    children.push(new Paragraph({ text: "" }));
+
+    if ((settings?.payment_terms || []).length > 0) {
+      children.push(new Paragraph({ text: "Payment Terms:", heading: HeadingLevel.HEADING_3 }));
+      settings.payment_terms.forEach(pt => children.push(new Paragraph({ text: "• " + pt.label + ": " + pt.percent + "% = BDT " + fmtEn(subTotal * (+pt.percent || 0) / 100) })));
+      children.push(new Paragraph({ text: "" }));
+    }
+    if ((settings?.exclusions || []).length > 0) {
+      children.push(new Paragraph({ text: "Exclusions (not included in BOQ):", heading: HeadingLevel.HEADING_3 }));
+      settings.exclusions.forEach(ex => children.push(new Paragraph({ text: "• " + ex })));
+      children.push(new Paragraph({ text: "" }));
+    }
+    if ((settings?.terms_conditions || []).length > 0) {
+      children.push(new Paragraph({ text: "Terms & Conditions:", heading: HeadingLevel.HEADING_3 }));
+      settings.terms_conditions.forEach((t, i) => children.push(new Paragraph({ text: (i + 1) + ". " + t })));
+    }
+
+    const doc = new Document({ sections: [{ children }] });
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "NIC_BOQ_" + (settings?.project_name || selProj) + ".docx";
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const handleBOQDocUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    if (!selProj) { alert("আগে একটি Project select করুন!"); e.target.value = ""; return; }
+    try {
+      const mammoth = await import("mammoth");
+      const arrayBuffer = await file.arrayBuffer();
+      const { value: html } = await mammoth.convertToHtml({ arrayBuffer });
+      const parser = new DOMParser();
+      const docHtml = parser.parseFromString(html, "text/html");
+      const maxSort = boqItems.reduce((m, it) => Math.max(m, it.sort_order ?? 0), 0);
+      let currentRoom = "Master Bedroom";
+      let sortCounter = 0;
+      const payloads = [];
+      Array.from(docHtml.body.children).forEach(el => {
+        if (/^H[1-3]$/.test(el.tagName)) {
+          const text = el.textContent.trim();
+          if (text && !/preliminary quotation|payment terms|exclusions|terms & conditions/i.test(text)) currentRoom = text;
+        } else if (el.tagName === "TABLE") {
+          const rows = Array.from(el.querySelectorAll("tr")).slice(1); // skip header row
+          rows.forEach(tr => {
+            const cells = Array.from(tr.querySelectorAll("td")).map(td => td.textContent.trim());
+            if (cells.length < 6) return; // not an item row (e.g. grand total table)
+            if (/sub total|grand total/i.test(cells[0])) return;
+            const [descLine, ...specLines] = (cells[2] || "").split("\n");
+            const qty = +cells[4] || 0;
+            const rate = +String(cells[5]).replace(/[^0-9.]/g, "") || 0;
+            sortCounter++;
+            payloads.push({
+              project_id: selProj, room_name: currentRoom, code_no: cells[0] || "", item_no: +cells[1] || sortCounter,
+              item_name: descLine || "", work_description: descLine || "", specification: specLines.join("\n"),
+              unit: cells[3] || "sft", qty, rate, amount: qty * rate, is_rate_fixed: false, sort_order: maxSort + sortCounter,
+            });
+          });
+        }
+      });
+      if (payloads.length === 0) { alert("❌ কোনো valid Item পাওয়া যায়নি এই Word ফাইলে। শুধু আমাদের নিজস্ব 'DOC Download' ফরম্যাট আবার আপলোড করলে সবচেয়ে ভালো কাজ করবে।"); e.target.value = ""; return; }
+      const { error } = await supabase.from("project_boq").insert(payloads);
+      if (error) { alert("❌ আপলোড ব্যর্থ: " + error.message); e.target.value = ""; return; }
+      alert("✅ " + payloads.length + "টি Item Word ফাইল থেকে যোগ হয়েছে!");
+      await loadBOQ(selProj);
+    } catch (err) {
+      alert("❌ DOC পড়তে সমস্যা হয়েছে: " + err.message);
+    }
+    e.target.value = "";
+  };
+
   const saveExpense = async (form) => { if (!selProj) return alert("আগে Project select করুন!"); const qty2 = Number(form.qty) || 1; const rate2 = Number(form.rate) || 0; const r = await supabase.from("project_expenses").insert([{ project_id: selProj, expense_date: form.expense_date || new Date().toISOString().split("T")[0], item_name: form.item_name || "", description: form.description || "", qty: qty2, rate: rate2, amount: qty2 * rate2, category: form.category || "material" }]); if (r.error) { alert("Error: " + r.error.message); return; } await loadExpenses(selProj); };
   const deleteExpense = async (id) => { if (!confirm("মুছবেন?")) return; await supabase.from("project_expenses").delete().eq("id", id); await loadExpenses(selProj); };
 
@@ -4747,6 +4867,9 @@ function BOQSystem() {
                 <button onClick={handleBOQExport} style={{ background: C.green, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>⬇️ Excel Download</button>
                 <button onClick={() => boqUploadRef.current?.click()} style={{ background: "#2A5C8F", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>⬆️ Excel Upload</button>
                 <input type="file" ref={boqUploadRef} onChange={handleBOQImport} accept=".xlsx,.xls,.csv" style={{ display: "none" }} />
+                <button onClick={handleBOQDocDownload} style={{ background: "#2A5C8F", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>📄 DOC Download</button>
+                <button onClick={() => boqDocUploadRef.current?.click()} style={{ background: "#2A5C8F", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>📥 DOC Upload</button>
+                <input type="file" ref={boqDocUploadRef} onChange={handleBOQDocUpload} accept=".docx" style={{ display: "none" }} />
                 <button onClick={deleteAllBOQItems} style={{ background: C.red, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>🗑️ সব Delete করুন</button>
               </div>
 
