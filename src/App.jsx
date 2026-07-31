@@ -138,22 +138,21 @@ const printSection = async (title, contentId, customDate) => {
   const win = window.open("", "_blank");
   win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
   <style>
-    @page { size: A4; margin: 0; }
+    @page { size: A4; margin: 14mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; }
-    html, body { height: 100%; margin: 0; padding: 0; }
-    .page { width: 210mm; padding: 38mm 14mm 22mm 14mm; box-sizing: border-box; position: relative; }
-    /* HEADER - fixed at top of every printed page, exact Noksha Pad layout */
-    .pad-header-fixed { }
-    @media print {
-      .pad-header-fixed {
-        position: fixed;
-        top: 6mm;
-        left: 14mm;
-        right: 14mm;
-        background: white;
-      }
-    }
+    /* ------------------------------------------------------------------
+       The ENTIRE printable document is one big table, with the letterhead
+       in <thead> and the footer note in <tfoot>. This is deliberate: browsers
+       correctly reserve/repeat <thead>/<tfoot> space on every page a table
+       spans — including continuation pages — which a position:fixed header
+       trick does NOT do reliably (content that continues from a previous
+       page ends up overlapping a fixed header). Using real thead/tfoot
+       fixes that at the source instead of patching around it.
+       ------------------------------------------------------------------ */
+    table.page-table { width: 100%; border-collapse: collapse; }
+    .header-cell, .footer-cell { padding: 0; }
+    .header-cell > div:first-child { padding-bottom: 8mm; }
     .pad-header {
       display: flex;
       justify-content: space-between;
@@ -162,40 +161,13 @@ const printSection = async (title, contentId, customDate) => {
       border-bottom: 1.5px solid #3F5F45;
       margin-bottom: 10px;
     }
-    .pad-left {
-      font-size: 8.5pt;
-      color: #333;
-      line-height: 1.5;
-    }
-    .pad-right {
-      text-align: right;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-    }
-    .pad-logo-img {
-      height: 46px;
-      width: auto;
-      object-fit: contain;
-    }
-    /* Document title bar */
-    .doc-title {
-      background: #3F5F45;
-      color: white;
-      text-align: center;
-      padding: 4px 10px;
-      font-size: 10pt;
-      font-weight: bold;
-      margin-bottom: 6px;
-    }
-    .doc-date {
-      text-align: right;
-      font-size: 8.5pt;
-      color: #555;
-      margin-bottom: 8px;
-    }
+    .pad-left { font-size: 8.5pt; color: #333; line-height: 1.5; }
+    .pad-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+    .pad-logo-img { height: 46px; width: auto; object-fit: contain; }
+    .doc-title { background: #3F5F45; color: white; text-align: center; padding: 4px 10px; font-size: 10pt; font-weight: bold; margin-bottom: 6px; }
+    .doc-date { text-align: right; font-size: 8.5pt; color: #555; margin-bottom: 8px; }
+    .footer-cell > div { padding-top: 6mm; border-top: 1px solid #aaa; font-size: 7.5pt; color: #555; text-align: center; }
     /* Content */
-    .pad-content { }
     table { width: 100%; border-collapse: collapse; font-size: 10pt !important; }
     th { background: #3F5F45 !important; color: white !important; padding: 4px 6px !important; text-align: left; border: 0.5px solid #2A3F2E; font-size: 9.5pt !important; font-weight: 600 !important; white-space: nowrap; }
     td { padding: 4px 6px !important; border-bottom: 0.5px solid #E0E0E0; font-size: 10pt !important; }
@@ -203,44 +175,20 @@ const printSection = async (title, contentId, customDate) => {
     /* Columns/buttons that should never appear on paper (Action, Edit/Delete, on-screen-only badges) */
     .no-print { display: none !important; }
     button { display: none !important; }
-    /* Stop the browser's default "repeat <thead>/<tfoot> on every printed page" behavior —
-       it was colliding with our own fixed Noksha Pad header/footer and causing overlapping/
-       misplaced rows right at page breaks. Tables should just flow normally instead. */
-    thead { display: table-row-group !important; }
-    tfoot { display: table-row-group !important; }
     tr { page-break-inside: avoid; break-inside: avoid; }
-    /* FOOTER - fixed at bottom of every printed page */
-    .pad-footer-fixed {
-      display: none;
-    }
+    /* The outer page-table's own thead/tfoot (letterhead + footer note) should repeat on
+       every page — that's the whole point. But INNER tables (item tables, Sub Total rows,
+       etc.) should NOT auto-repeat their own tfoot on every page, or things like "Sub Total"
+       would wrongly print on every single page instead of once at the end of that table. */
+    table:not(.page-table) tfoot { display: table-row-group !important; }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .screen-footer { display: none; }
-      .pad-footer-fixed {
-        display: block;
-        position: fixed;
-        bottom: 6mm;
-        left: 14mm;
-        right: 14mm;
-        padding: 5px 0 0;
-        border-top: 1px solid #aaa;
-        font-size: 7.5pt;
-        color: #555;
-        text-align: center;
-        background: white;
-      }
     }
-    .screen-footer {
-      margin-top: 30px;
-      border-top: 1px solid #aaa;
-      padding: 5px 0 8px;
-      font-size: 7.5pt;
-      color: #555;
-      text-align: center;
-    }
+    .screen-footer { display: none; }
   </style></head><body>
-  <div class="page">
-    <div class="pad-header-fixed">
+  <table class="page-table">
+    <thead><tr><td class="header-cell"><div>
       <div class="pad-header">
         <div class="pad-left">
           Address: Arju Super Market (3rd Floor)<br/>
@@ -253,17 +201,14 @@ const printSection = async (title, contentId, customDate) => {
       </div>
       <div class="doc-title">${title}</div>
       <div class="doc-date">Date: ${new Date(customDate || new Date()).toLocaleDateString("en-GB")}</div>
-    </div>
-    <div class="pad-content">
+    </div></td></tr></thead>
+    <tbody><tr><td>
       ${content.innerHTML}
-    </div>
-    <div class="screen-footer">
+    </td></tr></tbody>
+    <tfoot><tr><td class="footer-cell"><div>
       (We provide all kind of Building Design, 3D View, Exterior/Interior 3D Visualization, Structural Design, Electrical Design, Plumbing Design, Pouroshova/Rajuk Sheet, Estimating &amp; Costing, Building Construction &amp; Supervision)
-    </div>
-  </div>
-  <div class="pad-footer-fixed">
-    (We provide all kind of Building Design, 3D View, Exterior/Interior 3D Visualization, Structural Design, Electrical Design, Plumbing Design, Pouroshova/Rajuk Sheet, Estimating &amp; Costing, Building Construction &amp; Supervision)
-  </div>
+    </div></td></tr></tfoot>
+  </table>
   <script>setTimeout(() => { window.print(); }, 800 );<\/script>
   </body></html>`);
   win.document.close();
