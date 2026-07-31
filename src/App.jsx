@@ -203,6 +203,12 @@ const printSection = async (title, contentId, customDate) => {
     /* Columns/buttons that should never appear on paper (Action, Edit/Delete, on-screen-only badges) */
     .no-print { display: none !important; }
     button { display: none !important; }
+    /* Stop the browser's default "repeat <thead>/<tfoot> on every printed page" behavior —
+       it was colliding with our own fixed Noksha Pad header/footer and causing overlapping/
+       misplaced rows right at page breaks. Tables should just flow normally instead. */
+    thead { display: table-row-group !important; }
+    tfoot { display: table-row-group !important; }
+    tr { page-break-inside: avoid; break-inside: avoid; }
     /* FOOTER - fixed at bottom of every printed page */
     .pad-footer-fixed {
       display: none;
@@ -4837,6 +4843,9 @@ function BOQSystem() {
   const handleBOQDocDownload = async () => {
     if (!selProj) return alert("আগে একটি Project select করুন!");
     const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, AlignmentType, ImageRun, BorderStyle, VerticalAlign } = await import("docx");
+    // Word's default fonts often lack the Bengali Taka glyph (৳), which renders as garbled/broken characters.
+    // Use plain "Tk" text for currency inside the Word document instead (HTML/print output is unaffected and keeps ৳).
+    const fmtDoc = (n) => "Tk " + Number(n || 0).toLocaleString("en-US");
 
     // Fetch the Noksha logo as raw bytes for embedding in the Word file
     let logoBytes = null;
@@ -4851,8 +4860,10 @@ function BOQSystem() {
     const mkCell = (text, opts = {}) => {
       const lines = String(text ?? "").split("\n").filter(l => l.length > 0);
       const paras = lines.length > 0 ? lines.map((line, i) => new Paragraph({ alignment: opts.align, children: [new TextRun({ text: line, bold: !!opts.bold || (opts.boldFirstLine && i === 0), color: opts.color, italics: opts.italicsAfterFirst && i > 0 })] })) : [new Paragraph({ alignment: opts.align, children: [new TextRun({ text: "", bold: !!opts.bold })] })];
-      return new TableCell({ children: paras, shading: opts.fill ? { fill: opts.fill } : undefined, columnSpan: opts.span, verticalAlign: VerticalAlign.CENTER });
+      return new TableCell({ children: paras, shading: opts.fill ? { fill: opts.fill } : undefined, columnSpan: opts.span, verticalAlign: VerticalAlign.CENTER, width: opts.width ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined });
     };
+    // Proportional column widths for the item table so long descriptions get real room instead of squeezing into an even 1/7th share
+    const ITEM_COL_WIDTHS = [8, 7, 42, 8, 10, 12, 13]; // Code No, Item No, Description, Unit, Qty, Rate, Amount
 
     // ---- Letterhead header: address (left) + logo (right), exactly like the printed Noksha Pad ----
     const headerRowChildren = [
@@ -4904,15 +4915,15 @@ function BOQSystem() {
       children.push(new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
-          new TableRow({ children: ["Code No", "Item No", "Work Description & Specification", "Unit", "Quantity", "Rate (BDT)", "Amount (BDT)"].map(h => mkCell(h, { bold: true, color: "FFFFFF", fill: "3F5F45" })) }),
+          new TableRow({ children: ["Code No", "Item No", "Work Description & Specification", "Unit", "Quantity", "Rate (BDT)", "Amount (BDT)"].map((h, i) => mkCell(h, { bold: true, color: "FFFFFF", fill: "3F5F45", width: ITEM_COL_WIDTHS[i] })) }),
           ...items.map(it => new TableRow({
             children: [
-              mkCell(it.code_no), mkCell(it.item_no),
-              mkCell((it.item_name || "") + (it.work_description ? "\n" + it.work_description : "") + (it.specification ? "\n" + it.specification : ""), { boldFirstLine: true, italicsAfterFirst: true }),
-              mkCell(it.unit), mkCell(it.qty), mkCell(fmtEn(it.rate)), mkCell(fmtEn(it.amount)),
+              mkCell(it.code_no, { width: ITEM_COL_WIDTHS[0] }), mkCell(it.item_no, { width: ITEM_COL_WIDTHS[1] }),
+              mkCell((it.item_name || "") + (it.work_description ? "\n" + it.work_description : "") + (it.specification ? "\n" + it.specification : ""), { boldFirstLine: true, italicsAfterFirst: true, width: ITEM_COL_WIDTHS[2] }),
+              mkCell(it.unit, { width: ITEM_COL_WIDTHS[3] }), mkCell(it.qty, { width: ITEM_COL_WIDTHS[4] }), mkCell(fmtDoc(it.rate), { width: ITEM_COL_WIDTHS[5] }), mkCell(fmtDoc(it.amount), { width: ITEM_COL_WIDTHS[6] }),
             ],
           })),
-          new TableRow({ children: [mkCell("Sub Total (" + room + ")", { bold: true, span: 6, align: AlignmentType.RIGHT }), mkCell(fmtEn(roomTotal), { bold: true })] }),
+          new TableRow({ children: [mkCell("Sub Total (" + room + ")", { bold: true, span: 6, align: AlignmentType.RIGHT }), mkCell(fmtDoc(roomTotal), { bold: true, width: ITEM_COL_WIDTHS[6] })] }),
         ],
       }));
       children.push(new Paragraph({ text: "" }));
@@ -4921,16 +4932,16 @@ function BOQSystem() {
     children.push(new Table({
       width: { size: 50, type: WidthType.PERCENTAGE },
       rows: [
-        new TableRow({ children: [mkCell("Grand Total", { bold: true }), mkCell(fmtEn(grandTotal))] }),
-        new TableRow({ children: [mkCell("Delivery Charge", { bold: true }), mkCell(fmtEn(deliveryCharge))] }),
-        new TableRow({ children: [mkCell("Subtotal", { bold: true }), mkCell(fmtEn(subTotal), { bold: true })] }),
+        new TableRow({ children: [mkCell("Grand Total", { bold: true }), mkCell(fmtDoc(grandTotal))] }),
+        new TableRow({ children: [mkCell("Delivery Charge", { bold: true }), mkCell(fmtDoc(deliveryCharge))] }),
+        new TableRow({ children: [mkCell("Subtotal", { bold: true }), mkCell(fmtDoc(subTotal), { bold: true })] }),
       ],
     }));
     children.push(new Paragraph({ text: "" }));
 
     if ((settings?.payment_terms || []).length > 0) {
       children.push(new Paragraph({ text: "Payment Terms:", heading: HeadingLevel.HEADING_3 }));
-      settings.payment_terms.forEach(pt => children.push(new Paragraph({ text: "• " + pt.label + ": " + pt.percent + "% = BDT " + fmtEn(subTotal * (+pt.percent || 0) / 100) })));
+      settings.payment_terms.forEach(pt => children.push(new Paragraph({ text: "• " + pt.label + ": " + pt.percent + "% = BDT " + fmtDoc(subTotal * (+pt.percent || 0) / 100) })));
       children.push(new Paragraph({ text: "" }));
     }
     if ((settings?.exclusions || []).length > 0) {
