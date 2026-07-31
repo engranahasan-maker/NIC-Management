@@ -2476,6 +2476,151 @@ function SmartAttendanceSummary({ employees, lang }) {
   );
 }
 
+// ============================================================
+// MONTHLY PAYROLL ATTENDANCE REPORT
+// The "before you run payroll" checklist — shows exactly who has
+// gaps (missing days), unverified (no-location) entries, etc.
+// ============================================================
+function MonthlyPayrollAttendance({ employees, lang }) {
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [drillEmp, setDrillEmp] = useState(null);
+
+  const [y, m] = month.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const monthStart = month + "-01";
+  const monthEnd = month + "-" + String(daysInMonth).padStart(2, "0");
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("attendance").select("*").gte("date", monthStart).lte("date", monthEnd);
+    setRows(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [month]);
+
+  // Working days = all days in month up to today (for the current month) or full month (for past months), excluding Friday (weekly off)
+  const lastRelevantDay = (month === todayStr.slice(0, 7)) ? new Date().getDate() : daysInMonth;
+  const workingDates = [];
+  for (let d = 1; d <= lastRelevantDay; d++) {
+    const dt = new Date(y, m - 1, d);
+    if (dt.getDay() !== 5) workingDates.push(month + "-" + String(d).padStart(2, "0")); // 5 = Friday
+  }
+
+  const summary = employees.map(emp => {
+    const empRows = rows.filter(r => r.employee_id === emp.id);
+    const byDate = {}; empRows.forEach(r => { byDate[r.date] = r; });
+    let present = 0, late = 0, leave = 0, absentMarked = 0, missing = 0, manual = 0, noLocation = 0;
+    workingDates.forEach(d => {
+      const r = byDate[d];
+      if (!r) { missing++; return; }
+      if (r.status === "উপস্থিত") present++;
+      else if (r.status === "অর্ধদিন") late++;
+      else if (r.status === "ছুটি") leave++;
+      else if (r.status === "অনুপস্থিত") absentMarked++;
+      if (r.source === "manual_employee" || r.source === "manual_admin") manual++;
+      if (r.status === "উপস্থিত" && !r.lat) noLocation++;
+    });
+    const totalPresentLike = present + late;
+    const attendancePct = workingDates.length > 0 ? Math.round((totalPresentLike / workingDates.length) * 100) : 0;
+    return { emp, present, late, leave, absentMarked, missing, manual, noLocation, attendancePct, byDate };
+  });
+
+  const handleExport = () => exportToExcel(summary.map(s => ({
+    কর্মী: s.emp.name, "কর্মদিবস": workingDates.length, উপস্থিত: s.present, অর্ধদিন: s.late, ছুটি: s.leave,
+    "অনুপস্থিত (marked)": s.absentMarked, "কোনো এন্ট্রি নেই": s.missing, "ম্যানুয়াল এন্ট্রি": s.manual,
+    "Location ছাড়া": s.noLocation, "উপস্থিতি %": s.attendancePct,
+  })), "Payroll Attendance", "Monthly_Attendance_" + month);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <div style={{ fontWeight: 700, color: C.primaryDark, fontSize: 15 }}>🧾 মাসিক Payroll-Ready Attendance রিপোর্ট</div>
+          <div style={{ fontSize: 11, color: C.gray400 }}>বেতন দেওয়ার আগে এই রিপোর্ট চেক করুন — কার কোথায় ফাঁক আছে এক নজরে দেখা যাবে</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input type="month" value={month} onChange={e => setMonth(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
+          <button onClick={handleExport} style={btnEdit}>⬇️ Excel Download</button>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 12, color: C.gray400, marginBottom: 12 }}>মোট কর্মদিবস (শুক্রবার বাদে): <strong style={{ color: C.primaryDark }}>{fmtNum(workingDates.length)}</strong> দিন ({monthStart} → {month === todayStr.slice(0, 7) ? todayStr : monthEnd})</div>
+
+      <Card>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: C.gray400 }}>⏳</div> : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: C.primaryBg }}>{["কর্মী", "উপস্থিত", "অর্ধদিন", "ছুটি", "অনুপস্থিত", "⚠️ কোনো এন্ট্রি নেই", "ম্যানুয়াল", "📍 ছাড়া", "উপস্থিতি %", ""].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: C.primaryDark, fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {summary.map(s => (
+                  <tr key={s.emp.id} style={{ borderBottom: "1px solid " + C.gray100, background: s.missing > 0 ? "#FFF8E1" : "transparent" }}>
+                    <td style={{ padding: "8px 10px", fontWeight: 600, color: C.primaryDark }}>{s.emp.name}</td>
+                    <td style={{ padding: "8px 10px", color: C.green, fontWeight: 700 }}>{fmtNum(s.present)}</td>
+                    <td style={{ padding: "8px 10px", color: "#856404" }}>{fmtNum(s.late)}</td>
+                    <td style={{ padding: "8px 10px", color: C.blue }}>{fmtNum(s.leave)}</td>
+                    <td style={{ padding: "8px 10px", color: C.red }}>{fmtNum(s.absentMarked)}</td>
+                    <td style={{ padding: "8px 10px", color: s.missing > 0 ? "#c0392b" : C.gray400, fontWeight: s.missing > 0 ? 700 : 400 }}>{s.missing > 0 ? "⚠️ " + fmtNum(s.missing) : "—"}</td>
+                    <td style={{ padding: "8px 10px", color: C.gray600 }}>{s.manual > 0 ? fmtNum(s.manual) : "—"}</td>
+                    <td style={{ padding: "8px 10px", color: s.noLocation > 0 ? "#c0392b" : C.gray400 }}>{s.noLocation > 0 ? fmtNum(s.noLocation) : "—"}</td>
+                    <td style={{ padding: "8px 10px", fontWeight: 700, color: s.attendancePct < 90 ? C.red : C.green }}>{s.attendancePct}%</td>
+                    <td style={{ padding: "8px 10px" }}><button onClick={() => setDrillEmp(drillEmp === s.emp.id ? null : s.emp.id)} style={btnEdit}>{drillEmp === s.emp.id ? "▲ বন্ধ" : "📅 বিস্তারিত"}</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {drillEmp && (() => {
+        const s = summary.find(x => x.emp.id === drillEmp);
+        if (!s) return null;
+        const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        return (
+          <Card style={{ marginTop: 16 }}>
+            <div style={{ fontWeight: 700, color: C.primaryDark, marginBottom: 12, fontSize: 14 }}>📅 {s.emp.name} — {month} ক্যালেন্ডার</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 12 }}>
+              {weekdayNames.map(w => <div key={w} style={{ textAlign: "center", fontSize: 10, color: C.gray400, fontWeight: 700 }}>{w}</div>)}
+              {Array.from({ length: new Date(y, m - 1, 1).getDay() }).map((_, i) => <div key={"pad" + i} />)}
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
+                const dateStr = month + "-" + String(d).padStart(2, "0");
+                const isFuture = dateStr > todayStr;
+                const isFriday = new Date(y, m - 1, d).getDay() === 5;
+                const r = s.byDate[dateStr];
+                let bg = C.gray50, color = C.gray400, label = "";
+                if (isFriday) { bg = "#EEE"; color = "#999"; label = "শুক্র"; }
+                else if (isFuture) { bg = "transparent"; }
+                else if (!r) { bg = "#FFEBEE"; color = "#c0392b"; label = "⚠️ নেই"; }
+                else if (r.status === "উপস্থিত") { bg = r.lat ? "#E8F5E9" : "#FFF3E0"; color = r.lat ? "#2e7d32" : "#E65100"; label = r.lat ? "✅" : "✅📍✕"; }
+                else if (r.status === "অর্ধদিন") { bg = "#FFF8E1"; color = "#856404"; label = "অর্ধ"; }
+                else if (r.status === "ছুটি") { bg = "#E3F2FD"; color = "#1565C0"; label = "ছুটি"; }
+                else if (r.status === "অনুপস্থিত") { bg = "#FFEBEE"; color = "#c0392b"; label = "অনু"; }
+                return (
+                  <div key={d} title={dateStr} style={{ background: bg, color, borderRadius: 6, padding: "6px 2px", textAlign: "center", fontSize: 10, minHeight: 44 }}>
+                    <div style={{ fontWeight: 700, fontSize: 12 }}>{d}</div>
+                    <div>{label}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: C.gray600 }}>
+              <span>✅ উপস্থিত (verified)</span>
+              <span>✅📍✕ উপস্থিত (location ছাড়া)</span>
+              <span>⚠️ কোনো এন্ট্রি নেই</span>
+              <span>অর্ধ = Half day</span>
+              <span>ছুটি = On leave</span>
+              <span>অনু = Absent (marked)</span>
+            </div>
+          </Card>
+        );
+      })()}
+    </div>
+  );
+}
+
 function SmartAttendance({ employees, lang }) {
   const T = TXT[lang];
   const today = new Date().toISOString().split("T")[0];
@@ -2570,12 +2715,13 @@ function SmartAttendance({ employees, lang }) {
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
-        {[["today", "🗓️ আজ"], ["summary", "📅 সারাংশ (Weekly/Monthly/Yearly)"], ["overtime", "⏱️ Overtime"], ["regularization", "✏️ Regularization"], ["on_duty", "🚗 On Duty"], ["hourly_permission", "⏳ Hourly Permission"], ["shift", "🔄 Shift"], ["shift_change", "🔁 Shift Change"]].map(([id, label]) => (
+        {[["today", "🗓️ আজ"], ["summary", "📅 সারাংশ (Weekly/Monthly/Yearly)"], ["payroll_report", "🧾 মাসিক Payroll রিপোর্ট"], ["overtime", "⏱️ Overtime"], ["regularization", "✏️ Regularization"], ["on_duty", "🚗 On Duty"], ["hourly_permission", "⏳ Hourly Permission"], ["shift", "🔄 Shift"], ["shift_change", "🔁 Shift Change"]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} style={{ background: tab === id ? C.primary : C.white, color: tab === id ? C.white : C.gray800, border: "1px solid " + (tab === id ? C.primary : C.gray200), borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{label}</button>
         ))}
       </div>
 
       {tab === "summary" && <SmartAttendanceSummary employees={employees} lang={lang} />}
+      {tab === "payroll_report" && <MonthlyPayrollAttendance employees={employees} lang={lang} />}
       {tab === "overtime" && <AttendanceRequestsPanel employees={employees} type="overtime" shifts={shifts} />}
       {tab === "regularization" && <AttendanceRequestsPanel employees={employees} type="regularization" shifts={shifts} />}
       {tab === "on_duty" && <AttendanceRequestsPanel employees={employees} type="on_duty" shifts={shifts} />}
