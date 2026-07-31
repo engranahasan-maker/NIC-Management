@@ -4692,7 +4692,11 @@ function BOQSystem() {
     if (!selProj) return alert("আগে একটি Project select করুন!");
     const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, AlignmentType } = await import("docx");
 
-    const mkCell = (text, opts = {}) => new TableCell({ children: [new Paragraph({ alignment: opts.align, children: [new TextRun({ text: String(text ?? ""), bold: !!opts.bold, color: opts.color })] })], shading: opts.fill ? { fill: opts.fill } : undefined, columnSpan: opts.span });
+    const mkCell = (text, opts = {}) => {
+      const lines = String(text ?? "").split("\n").filter(l => l.length > 0);
+      const paras = lines.length > 0 ? lines.map((line, i) => new Paragraph({ alignment: opts.align, children: [new TextRun({ text: line, bold: !!opts.bold || (opts.boldFirstLine && i === 0), color: opts.color, italics: opts.italicsAfterFirst && i > 0 })] })) : [new Paragraph({ alignment: opts.align, children: [new TextRun({ text: "", bold: !!opts.bold })] })];
+      return new TableCell({ children: paras, shading: opts.fill ? { fill: opts.fill } : undefined, columnSpan: opts.span });
+    };
 
     const children = [
       new Paragraph({ text: "PRELIMINARY QUOTATION FOR INTERIOR WORK (Flat)", heading: HeadingLevel.HEADING_1 }),
@@ -4717,7 +4721,7 @@ function BOQSystem() {
           ...items.map(it => new TableRow({
             children: [
               mkCell(it.code_no), mkCell(it.item_no),
-              mkCell((it.item_name || "") + (it.specification ? "\n" + it.specification : "")),
+              mkCell((it.item_name || "") + (it.work_description ? "\n" + it.work_description : "") + (it.specification ? "\n" + it.specification : ""), { boldFirstLine: true, italicsAfterFirst: true }),
               mkCell(it.unit), mkCell(it.qty), mkCell(fmtEn(it.rate)), mkCell(fmtEn(it.amount)),
             ],
           })),
@@ -4780,16 +4784,21 @@ function BOQSystem() {
         } else if (el.tagName === "TABLE") {
           const rows = Array.from(el.querySelectorAll("tr")).slice(1); // skip header row
           rows.forEach(tr => {
-            const cells = Array.from(tr.querySelectorAll("td")).map(td => td.textContent.trim());
+            const tds = Array.from(tr.querySelectorAll("td"));
+            const cells = tds.map(td => td.textContent.trim());
             if (cells.length < 6) return; // not an item row (e.g. grand total table)
             if (/sub total|grand total/i.test(cells[0])) return;
-            const [descLine, ...specLines] = (cells[2] || "").split("\n");
+            // The description cell may contain multiple <p> paragraphs (Item Name / Work Description / Specification) —
+            // td.textContent alone would run them together with no separator, so read each <p> line individually.
+            const descCell = tds[2];
+            const descLines = descCell ? Array.from(descCell.querySelectorAll("p")).map(p => p.textContent.trim()).filter(Boolean) : [cells[2] || ""];
+            const [descLine, workLine, ...specLines] = descLines;
             const qty = +cells[4] || 0;
             const rate = +String(cells[5]).replace(/[^0-9.]/g, "") || 0;
             sortCounter++;
             payloads.push({
               project_id: selProj, room_name: currentRoom, code_no: cells[0] || "", item_no: +cells[1] || sortCounter,
-              item_name: descLine || "", work_description: descLine || "", specification: specLines.join("\n"),
+              item_name: descLine || "", work_description: workLine || "", specification: specLines.join("\n"),
               unit: cells[3] || "sft", qty, rate, amount: qty * rate, is_rate_fixed: false, sort_order: maxSort + sortCounter,
             });
           });
