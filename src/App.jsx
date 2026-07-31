@@ -4836,17 +4836,55 @@ function BOQSystem() {
   // ---- DOC (Word) export/import: mirrors the exact printable layout ----
   const handleBOQDocDownload = async () => {
     if (!selProj) return alert("আগে একটি Project select করুন!");
-    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, AlignmentType } = await import("docx");
+    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, AlignmentType, ImageRun, BorderStyle, VerticalAlign } = await import("docx");
+
+    // Fetch the Noksha logo as raw bytes for embedding in the Word file
+    let logoBytes = null;
+    try {
+      const resp = await fetch("https://jijxnycopycsysugppnw.supabase.co/storage/v1/object/public/Upload%20images/icon.png");
+      logoBytes = new Uint8Array(await resp.arrayBuffer());
+    } catch (e) { logoBytes = null; }
+
+    const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+    const invisibleBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
 
     const mkCell = (text, opts = {}) => {
       const lines = String(text ?? "").split("\n").filter(l => l.length > 0);
       const paras = lines.length > 0 ? lines.map((line, i) => new Paragraph({ alignment: opts.align, children: [new TextRun({ text: line, bold: !!opts.bold || (opts.boldFirstLine && i === 0), color: opts.color, italics: opts.italicsAfterFirst && i > 0 })] })) : [new Paragraph({ alignment: opts.align, children: [new TextRun({ text: "", bold: !!opts.bold })] })];
-      return new TableCell({ children: paras, shading: opts.fill ? { fill: opts.fill } : undefined, columnSpan: opts.span });
+      return new TableCell({ children: paras, shading: opts.fill ? { fill: opts.fill } : undefined, columnSpan: opts.span, verticalAlign: VerticalAlign.CENTER });
     };
 
+    // ---- Letterhead header: address (left) + logo (right), exactly like the printed Noksha Pad ----
+    const headerRowChildren = [
+      new TableCell({
+        borders: invisibleBorders,
+        width: { size: 65, type: WidthType.PERCENTAGE },
+        children: [
+          new Paragraph({ children: [new TextRun({ text: "Address: Arju Super Market (3rd Floor)", color: "333333", size: 18 })] }),
+          new Paragraph({ children: [new TextRun({ text: "Niltuli Mujib Sarak, Faridpur.", color: "333333", size: 18 })] }),
+          new Paragraph({ children: [new TextRun({ text: "Cell: +88 01619-677070   E-mail: noksha.ltd@gmail.com", color: "333333", size: 18 })] }),
+        ],
+      }),
+      new TableCell({
+        borders: invisibleBorders,
+        width: { size: 35, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: logoBytes ? [new ImageRun({ data: logoBytes, transformation: { width: 90, height: 90 } })] : [] })],
+      }),
+    ];
+
     const children = [
-      new Paragraph({ text: "PRELIMINARY QUOTATION FOR INTERIOR WORK (Flat)", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: "SL: " + (settings?.serial_no || genSerialNo()), alignment: AlignmentType.RIGHT }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: headerRowChildren })] }),
+      new Paragraph({ text: "", border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: "3F5F45" } } }),
+      new Paragraph({ text: "" }),
+      // Green title bar, matching the printed "BILL OF QUANTITIES (BOQ)" bar
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [new TableRow({ children: [new TableCell({ shading: { fill: "3F5F45" }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "BILL OF QUANTITIES (BOQ)", bold: true, color: "FFFFFF" })] })] })] })],
+      }),
+      new Paragraph({ text: "" }),
+      new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "Date: " + new Date().toLocaleDateString("en-GB") + "    SL: " + (settings?.serial_no || genSerialNo()), size: 18 })] }),
+      new Paragraph({ text: "" }),
+      new Paragraph({ children: [new TextRun({ text: "PRELIMINARY QUOTATION FOR INTERIOR WORK (Flat)", bold: true, italics: true, size: 26 })] }),
       new Paragraph({ text: "" }),
       new Paragraph({ text: "To," }),
       new Paragraph({ text: "Client Name: " + (settings?.client_name || "") }),
@@ -4859,7 +4897,10 @@ function BOQSystem() {
 
     Object.entries(roomGroups).forEach(([room, items]) => {
       const roomTotal = items.reduce((s, i) => s + Number(i.amount || 0), 0);
-      children.push(new Paragraph({ text: room, heading: HeadingLevel.HEADING_2 }));
+      children.push(new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [new TableRow({ children: [new TableCell({ shading: { fill: "3F5F45" }, children: [new Paragraph({ children: [new TextRun({ text: room, bold: true, color: "FFFFFF" })] })] })] })],
+      }));
       children.push(new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
@@ -4902,6 +4943,14 @@ function BOQSystem() {
       settings.terms_conditions.forEach((t, i) => children.push(new Paragraph({ text: (i + 1) + ". " + t })));
     }
 
+    // Footer text, matching the printed Noksha Pad footer
+    children.push(new Paragraph({ text: "" }));
+    children.push(new Paragraph({ text: "", border: { top: { style: BorderStyle.SINGLE, size: 6, color: "AAAAAA" } } }));
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: "(We provide all kind of Building Design, 3D View, Exterior/Interior 3D Visualization, Structural Design, Electrical Design, Plumbing Design, Pouroshova/Rajuk Sheet, Estimating & Costing, Building Construction & Supervision)", italics: true, size: 14, color: "555555" })],
+    }));
+
     const doc = new Document({ sections: [{ children }] });
     const blob = await Packer.toBlob(doc);
     const url = URL.createObjectURL(blob);
@@ -4928,12 +4977,20 @@ function BOQSystem() {
           const text = el.textContent.trim();
           if (text && !/preliminary quotation|payment terms|exclusions|terms & conditions/i.test(text)) currentRoom = text;
         } else if (el.tagName === "TABLE") {
-          const rows = Array.from(el.querySelectorAll("tr")).slice(1); // skip header row
+          const allTds = Array.from(el.querySelectorAll("td"));
+          const allRows = Array.from(el.querySelectorAll("tr"));
+          // A single-row, single-cell table (the green room-name bar, or the BOQ title bar) — not an item table.
+          if (allRows.length === 1 && allTds.length === 1) {
+            const text = allTds[0].textContent.trim();
+            if (text && !/bill of quantities/i.test(text)) currentRoom = text;
+            return;
+          }
+          const rows = allRows.slice(1); // skip header row
           rows.forEach(tr => {
             const tds = Array.from(tr.querySelectorAll("td"));
             const cells = tds.map(td => td.textContent.trim());
-            if (cells.length < 6) return; // not an item row (e.g. grand total table)
-            if (/sub total|grand total/i.test(cells[0])) return;
+            if (cells.length < 6) return; // not an item row (e.g. address header, grand total table)
+            if (/sub total|grand total|delivery charge|subtotal/i.test(cells[0])) return;
             // The description cell may contain multiple <p> paragraphs (Item Name / Work Description / Specification) —
             // td.textContent alone would run them together with no separator, so read each <p> line individually.
             const descCell = tds[2];
